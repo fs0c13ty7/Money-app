@@ -1,0 +1,23 @@
+{
+  "name": "Money Tracker",
+  "short_name": "Money",
+  "description": "A private, offline money tracker. Your data stays on your phone.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F5F9",
+  "theme_color": "#2F55D4",
+  "lang": "en-GB",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Add expense", "short_name": "Expense", "url": "./?add=expense", "icons": [{ "src": "shortcut-add.png", "sizes": "96x96" }] },
+    { "name": "Add income", "short_name": "Income", "url": "./?add=income", "icons": [{ "src": "shortcut-add.png", "sizes": "96x96" }] },
+    { "name": "Search", "short_name": "Search", "url": "./?view=search", "icons": [{ "src": "shortcut-search.png", "sizes": "96x96" }] }
+  ]
+}
