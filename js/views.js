@@ -172,7 +172,7 @@
       h += UI.seg('Period', [{ id: 'day', label: 'Day' }, { id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }], st.period, 'act-period');
       h += `<div class="swipe-area${UI.actEnter ? ' ' + UI.actEnter : ''}">`;
       UI.actEnter = null;
-      h += `<div class="range-nav"><button class="icon-btn press" data-act="act-step" data-dir="-1" aria-label="Previous">${ic('chevL', 20, 2)}</button><span class="range-label">${esc(r.label)}</span><button class="icon-btn press" data-act="act-step" data-dir="1" aria-label="Next"${canNext ? '' : ' disabled'}>${ic('chevR', 20, 2)}</button></div>`;
+      h += `<div class="range-nav"><button class="icon-btn press" data-act="act-step" data-dir="-1" aria-label="Previous">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-period" aria-label="Choose a ${st.period}: ${esc(r.label)}">${esc(r.label)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="act-step" data-dir="1" aria-label="Next"${canNext ? '' : ' disabled'}>${ic('chevR', 20, 2)}</button></div>`;
       const all = S.range(r.from, r.to);
       const tot = S.totals(r.from, r.to);
       h += `<section class="card summary3"><div><span class="lbl">Money in</span><span class="mid in">${U.fmt(tot.in, { plus: true })}</span></div><div><span class="lbl">Money out</span><span class="mid">${U.fmt(-tot.out)}</span></div><div class="r"><span class="lbl">Net</span><span class="mid">${U.fmt(tot.net, { plus: true })}</span></div></section>`;
@@ -435,7 +435,7 @@
       const fc = X.forecast(m);
       const tot = S.totals(m, end);
       let h = `<header class="appbar topbar"><h1 class="h1">Insights</h1></header><div class="stack">`;
-      h += `<div class="range-nav"><button class="icon-btn press" data-act="ins-step" data-dir="-1" aria-label="Previous month">${ic('chevL', 20, 2)}</button><span class="range-label">${U.fmtMonth(m)}</span><button class="icon-btn press" data-act="ins-step" data-dir="1" aria-label="Next month"${isCurrent ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div>`;
+      h += `<div class="range-nav"><button class="icon-btn press" data-act="ins-step" data-dir="-1" aria-label="Previous month">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-ins-month" aria-label="Choose a month: ${U.fmtMonth(m)}">${U.fmtMonth(m)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="ins-step" data-dir="1" aria-label="Next month"${isCurrent ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div>`;
       if (!S.tx.length) {
         h += UI.empty('insights', 'Charts appear as you log', 'Once you’ve added a few transactions, this is where you’ll see where your money goes.', `<button class="btn btn-primary press" data-act="quick-add">${ic('plus', 18, 2.2)} Add a transaction</button>`);
         return h + '</div>';
@@ -497,6 +497,31 @@
   A['stat-go'] = (el) => {
     UI.act = { period: el.getAttribute('data-period'), anchor: el.getAttribute('data-anchor'), cat: null };
     UI.tab('activity');
+  };
+  A['pick-period'] = () => {
+    const st = UI.act;
+    MT.sheets.periodPicker({
+      mode: st.period === 'month' ? 'month' : 'day',
+      value: st.anchor,
+      title: st.period === 'month' ? 'Choose a month' : st.period === 'week' ? 'Choose a week' : 'Choose a day',
+      onPick: (iso) => {
+        UI.act.anchor = st.period === 'month' ? iso : iso;
+        UI.entering = true;
+        UI.refresh();
+      }
+    });
+  };
+  A['pick-ins-month'] = () => {
+    MT.sheets.periodPicker({
+      mode: 'month',
+      value: UI.insMonth,
+      title: 'Choose a month',
+      onPick: (iso) => {
+        UI.insMonth = U.monthStart(iso);
+        UI.entering = true;
+        UI.refresh();
+      }
+    });
   };
   A['ins-step'] = (el) => {
     const dir = Number(el.getAttribute('data-dir'));

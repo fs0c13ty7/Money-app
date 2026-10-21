@@ -136,6 +136,7 @@
     back: 'M15 6l-6 6 6 6',
     chevR: 'M9 6l6 6-6 6',
     chevL: 'M15 6l-6 6 6 6',
+    chevD: 'M6 9l6 6 6-6',
     home: 'M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
     list: 'M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01',
     insights: 'M5 20v-8M11 20V5M17 20v-11M3 20h18',

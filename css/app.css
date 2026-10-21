@@ -307,6 +307,31 @@ label.tx-row { cursor: pointer; }
 .swipe-area.in-l { animation: inL .3s var(--ease) both; }
 .range-nav { display: flex; align-items: center; justify-content: space-between; margin: -4px -10px; }
 .range-label { font-size: 15px; font-weight: 800; }
+.range-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 14px; border: 0; border-radius: 14px; background: transparent; color: var(--ink); font: inherit; font-size: 15px; font-weight: 800; }
+.range-btn .ic { color: var(--muted); }
+.range-btn:hover { background: var(--divider); }
+/* period picker */
+.pk { gap: 12px; }
+.pk-nav { display: flex; align-items: center; justify-content: space-between; margin: 0 -10px; }
+.pk-title { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pk-title-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 12px; border: 0; border-radius: 14px; background: none; color: var(--ink); font: inherit; font-size: 16px; font-weight: 800; }
+.pk-title-btn .ic { color: var(--muted); }
+.pk-months { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pk-month { display: flex; flex-direction: column; align-items: center; gap: 2px; height: 64px; justify-content: center; border-radius: 16px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
+.pk-month b { font-size: 15px; }
+.pk-month span { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pk-month.cur { border-color: var(--accent-ink); }
+.pk-month.sel { background: var(--accent); border-color: var(--accent); color: #FFFFFF; }
+.pk-month.sel span { color: rgba(255, 255, 255, .85); }
+.pk-month:disabled, .pk-day:disabled { opacity: .35; }
+.pk-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.pk-dow { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding: 4px 0; }
+.pk-day { position: relative; height: 44px; border: 0; border-radius: 12px; background: none; color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pk-day.has::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent-ink); }
+.pk-day.cur { box-shadow: inset 0 0 0 1.5px var(--accent-ink); }
+.pk-day.sel { background: var(--accent); color: #FFFFFF; }
+.pk-day.sel::after { background: #FFFFFF; }
+.pk-hint { margin: 0; }
 
 /* category bars */
 .cat-bars { display: flex; flex-direction: column; }

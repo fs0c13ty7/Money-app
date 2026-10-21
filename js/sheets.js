@@ -709,6 +709,84 @@
   A['imp-mode'] = (el) => M.imp && M.imp.mode(el.getAttribute('data-val'));
   A['imp-go'] = (el) => M.imp && M.imp.go(el);
 
+  /* ================= PERIOD PICKER ================= */
+  /* mode 'month': a year of months with what you spent in each. mode 'day': a calendar; tap its title to jump by month. */
+  M.periodPicker = (o) => {
+    const today = U.today();
+    const first = S.firstDate() || today;
+    const minYear = Number(first.slice(0, 4));
+    const maxYear = Number(today.slice(0, 4));
+    let view = o.mode === 'month' ? 'months' : 'days';
+    let year = Number(o.value.slice(0, 4));
+    let month = U.monthStart(o.value);
+    let entry = null;
+    const pick = async (iso) => {
+      await UI.closeSheet();
+      o.onPick(iso);
+    };
+    const monthsHtml = () => {
+      let h = `<div class="pk-nav"><button class="icon-btn press" data-act="pk-year" data-d="-1" aria-label="Previous year"${year <= minYear ? ' disabled' : ''}>${ic('chevL', 20, 2)}</button><span class="pk-title">${year}</span><button class="icon-btn press" data-act="pk-year" data-d="1" aria-label="Next year"${year >= maxYear ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div><div class="pk-months">`;
+      for (let m = 0; m < 12; m++) {
+        const ms = year + '-' + String(m + 1).padStart(2, '0') + '-01';
+        const future = ms > today;
+        const t = future ? null : S.totals(ms, U.monthEnd(ms));
+        const sel = ms === U.monthStart(o.value);
+        const cur = ms === U.monthStart(today);
+        h += `<button class="pk-month press${sel ? ' sel' : ''}${cur ? ' cur' : ''}" data-act="pk-month" data-val="${ms}"${future ? ' disabled' : ''} aria-label="${U.MONL[m]} ${year}${t && t.out ? ', spent ' + U.fmt(t.out) : ''}"><b>${U.MON[m]}</b><span>${t && t.out ? U.fmtShort(t.out) : '—'}</span></button>`;
+      }
+      return h + `</div><div class="btn-row"><button class="btn press" data-act="sheet-close">Cancel</button><button class="btn btn-soft press" data-act="pk-today">${o.mode === 'month' ? 'This month' : 'Today'}</button></div>`;
+    };
+    const daysHtml = () => {
+      const ws = S.settings().weekStart;
+      const end = U.monthEnd(month);
+      const days = Number(end.slice(8));
+      const daily = S.dailySpend(month, end);
+      const lead = (U.parse(month).getDay() - ws + 7) % 7;
+      const prevOk = month > U.monthStart(first);
+      const nextOk = U.addMonths(month, 1, 1) <= today;
+      let h = `<div class="pk-nav"><button class="icon-btn press" data-act="pk-mon" data-d="-1" aria-label="Previous month"${prevOk ? '' : ' disabled'}>${ic('chevL', 20, 2)}</button><button class="pk-title pk-title-btn press" data-act="pk-to-months" aria-label="Choose a different month">${U.fmtMonth(month)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="pk-mon" data-d="1" aria-label="Next month"${nextOk ? '' : ' disabled'}>${ic('chevR', 20, 2)}</button></div><div class="pk-days">`;
+      for (let i = 0; i < 7; i++) h += `<span class="pk-dow" aria-hidden="true">${U.DOW[(i + ws) % 7].charAt(0)}</span>`;
+      for (let i = 0; i < lead; i++) h += `<span></span>`;
+      for (let d = 1; d <= days; d++) {
+        const iso = month.slice(0, 8) + String(d).padStart(2, '0');
+        const sel = iso === o.value;
+        h += `<button class="pk-day press${sel ? ' sel' : ''}${iso === today ? ' cur' : ''}${daily[iso] ? ' has' : ''}" data-act="pk-day" data-val="${iso}"${iso > today ? ' disabled' : ''} aria-label="${U.fmtDay(iso)}${daily[iso] ? ', spent ' + U.fmt(daily[iso]) : ''}">${d}</button>`;
+      }
+      return h + `</div><p class="muted sm pk-hint">Days with a dot have spending. Tap the month name to jump further.</p><div class="btn-row"><button class="btn press" data-act="sheet-close">Cancel</button><button class="btn btn-soft press" data-act="pk-today">Today</button></div>`;
+    };
+    const render = () => `<div class="form pk"><h2 class="sheet-title">${esc(view === 'months' && o.mode === 'day' ? 'Choose a month' : o.title)}</h2>${view === 'months' ? monthsHtml() : daysHtml()}</div>`;
+    M.pk = {
+      year: (d) => {
+        year = Math.max(minYear, Math.min(maxYear, year + d));
+        UI.rerenderSheet(entry);
+      },
+      mon: (d) => {
+        month = U.addMonths(month, d, 1);
+        UI.rerenderSheet(entry);
+      },
+      toMonths: () => {
+        view = 'months';
+        year = Number(month.slice(0, 4));
+        UI.rerenderSheet(entry);
+      },
+      month: (ms) => {
+        if (o.mode === 'month') return pick(ms);
+        month = ms;
+        view = 'days';
+        UI.rerenderSheet(entry);
+      },
+      day: (iso) => pick(iso),
+      today: () => pick(o.mode === 'month' ? U.monthStart(today) : today)
+    };
+    entry = UI.openSheet({ label: o.title, cls: 'picker', render: render, onClose: () => (M.pk = null) });
+  };
+  A['pk-year'] = (el) => M.pk && M.pk.year(Number(el.getAttribute('data-d')));
+  A['pk-mon'] = (el) => M.pk && M.pk.mon(Number(el.getAttribute('data-d')));
+  A['pk-to-months'] = () => M.pk && M.pk.toMonths();
+  A['pk-month'] = (el) => M.pk && M.pk.month(el.getAttribute('data-val'));
+  A['pk-day'] = (el) => M.pk && M.pk.day(el.getAttribute('data-val'));
+  A['pk-today'] = () => M.pk && M.pk.today();
+
   /* ================= DATA MISSING ================= */
   /* Shown when this phone had entries before but storage now opens empty */
   M.missingData = (mark) => {
