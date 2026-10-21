@@ -162,6 +162,18 @@
     return { from: S.mStart(anchor), to: S.mEnd(anchor), label: S.mLabel(anchor), sub: S.mSpan(anchor) };
   }
   UI.rangeOf = rangeOf;
+  /* "back to now" pill: only shown when you've moved away from the current day, week or month.
+     It pops in the first time it appears, not on every swipe after that. */
+  UI.pillShown = {};
+  UI.nowPill = (route, act, label) => {
+    const fresh = !UI.pillShown[route];
+    UI.pillShown[route] = true;
+    return `<button class="now-pill press${fresh && !U.reducedMotion() ? ' pop' : ''}" data-act="${act}" aria-label="Back to ${label.toLowerCase()}">${ic('jump', 15, 2.4)}<span>${label}</span></button>`;
+  };
+  UI.noPill = (route) => {
+    UI.pillShown[route] = false;
+    return '';
+  };
   /* a range title, with the pay month's dates underneath when months run from payday */
   UI.rangeText = (label, sub) => (sub ? `<span class="range-stack"><span>${esc(label)}</span><small>${esc(sub)}</small></span>` : esc(label));
   V.activity = {
@@ -170,7 +182,8 @@
       const r = rangeOf(st.period, st.anchor);
       const today = U.today();
       const canNext = r.to < today;
-      let h = `<header class="appbar topbar"><h1 class="h1">Activity</h1><button class="icon-btn outline press" data-act="go" data-to="search" aria-label="Search transactions">${ic('search', 20, 1.9)}</button></header><div class="stack">`;
+      const away = !(r.from <= today && today <= r.to);
+      let h = `<header class="appbar topbar"><h1 class="h1">Activity</h1><div class="bar-actions">${away ? UI.nowPill('activity', 'act-now', { day: 'Today', week: 'This week', month: 'This month' }[st.period]) : UI.noPill('activity')}<button class="icon-btn outline press" data-act="go" data-to="search" aria-label="Search transactions">${ic('search', 20, 1.9)}</button></div></header><div class="stack">`;
       h += UI.seg('Period', [{ id: 'day', label: 'Day' }, { id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }], st.period, 'act-period');
       h += `<div class="swipe-area${UI.actEnter ? ' ' + UI.actEnter : ''}">`;
       UI.actEnter = null;
@@ -228,6 +241,12 @@
     UI.actEnter = U.reducedMotion() ? null : dir > 0 ? 'in-r' : 'in-l';
     UI.refresh();
     return true;
+  };
+  A['act-now'] = () => {
+    UI.act.anchor = U.today();
+    UI.actEnter = U.reducedMotion() ? null : 'in-r';
+    U.vibrate(5);
+    UI.refresh();
   };
   A['act-step'] = (el) => UI.actStep(Number(el.getAttribute('data-dir')));
   /* screens you can swipe between periods on: Activity here, Insights further down */
@@ -449,7 +468,7 @@
       const end = isCurrent ? today : S.mEnd(m);
       const fc = X.forecast(m);
       const tot = S.totals(m, end);
-      let h = `<header class="appbar topbar"><h1 class="h1">Insights</h1></header><div class="stack"><div class="swipe-area${UI.insEnter ? ' ' + UI.insEnter : ''}">`;
+      let h = `<header class="appbar topbar"><h1 class="h1">Insights</h1>${isCurrent ? UI.noPill('insights') : UI.nowPill('insights', 'ins-now', 'This month')}</header><div class="stack"><div class="swipe-area${UI.insEnter ? ' ' + UI.insEnter : ''}">`;
       UI.insEnter = null;
       h += `<div class="range-nav"><button class="icon-btn press" data-act="ins-step" data-dir="-1" aria-label="Previous month">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-ins-month" aria-label="Choose a month: ${S.mLabel(m)}">${UI.rangeText(S.mLabel(m), S.mSpan(m))}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="ins-step" data-dir="1" aria-label="Next month"${isCurrent ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div>`;
       if (!S.tx.length) {
@@ -549,6 +568,12 @@
     return true;
   };
   UI.swipeNav.insights = { canNext: () => UI.insCanNext(), step: (dir) => UI.insStep(dir) };
+  A['ins-now'] = () => {
+    UI.insMonth = U.today();
+    UI.insEnter = U.reducedMotion() ? null : 'in-r';
+    U.vibrate(5);
+    UI.refresh();
+  };
   A['ins-step'] = (el) => UI.insStep(Number(el.getAttribute('data-dir')));
 
   /* ================= MORE / SETTINGS ================= */
