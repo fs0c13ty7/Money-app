@@ -6,7 +6,7 @@
   const S = MT.store;
   const UI = MT.ui;
   const A = UI.actions;
-  MT.VERSION = '1.3.2';
+  MT.VERSION = '1.4.0';
 
   /* ---------- Example data: flagged so it can be removed in one tap ---------- */
   MT.examples = () => {
@@ -79,14 +79,40 @@
     }
   };
 
+  function storageError(e) {
+    const view = document.getElementById('view');
+    view.innerHTML = `<div class="fatal"><span class="tile tile-xl c-amber">${U.icon('alert', 30, 1.8)}</span><h1 class="h1">Couldn’t open your data</h1><p>Nothing has been deleted. The app couldn’t reach its storage this time${e && e.message ? ' (' + U.esc(e.message) + ')' : ''}.</p><p>Close every copy of the app and any browser tab showing it, then open it again.</p><button class="btn btn-primary btn-lg" id="retry-storage">Try again</button></div>`;
+    document.documentElement.classList.add('ready');
+    const b = document.getElementById('retry-storage');
+    if (b) b.addEventListener('click', () => location.reload());
+  }
+
   /* ---------- Boot ---------- */
   async function boot() {
     try {
       await S.load();
     } catch (e) {
-      document.getElementById('view').innerHTML = `<div class="fatal"><h1 class="h1">Couldn’t open your data</h1><p>${U.esc((e && e.message) || 'Storage error')}. Close the app fully and open it again. Your saved data has not been changed.</p></div>`;
+      storageError(e);
       return;
     }
+    /* If storage can't be opened, stop here. Showing an empty, usable app would look like lost data
+       and anything typed in would vanish. The preview page is the only place memory mode is allowed. */
+    if (MT.db.memory && !MT.PREVIEW) {
+      storageError(MT.db.error);
+      return;
+    }
+    const MARK = 'mt-had-data';
+    let mark = null;
+    try {
+      mark = JSON.parse(localStorage.getItem(MARK) || 'null');
+    } catch (e) {}
+    const remember = () => {
+      try {
+        const n = S.tx.filter((t) => !t.example).length;
+        if (n) localStorage.setItem(MARK, JSON.stringify({ n: n, at: Date.now() }));
+      } catch (e) {}
+    };
+    const missing = !MT.PREVIEW && mark && mark.n > 0 && !S.tx.some((t) => !t.example);
     const theme = S.settings().theme;
     UI.applyTheme(theme);
     try {
@@ -100,6 +126,8 @@
       console.error(e);
     }
     S.onChange(() => UI.refresh());
+    S.onChange(remember);
+    remember();
     history.replaceState({ route: { name: 'home', params: {} } }, '');
     UI.render({ entering: true });
     document.documentElement.classList.add('ready');
@@ -114,6 +142,8 @@
       MT.sheets.txForm(null, { type: params.get('add') === 'income' ? 'income' : 'expense' });
     } else if (params.get('view') === 'search') {
       UI.go('search');
+    } else if (missing) {
+      MT.sheets.missingData(mark);
     } else if (!S.meta.onboarded && !S.tx.length) {
       MT.sheets.onboarding();
     } else if (logged) {
@@ -122,7 +152,10 @@
 
     setTimeout(() => S.snapshotDaily().catch(() => {}), 1500);
     /* ask the browser to protect our storage every launch; Chrome grants it once the app is installed or used often */
-    setTimeout(() => MT.db.persist(), 2500);
+    setTimeout(async () => {
+      UI.persisted = await MT.db.persist();
+      if (UI.persisted === false && UI.route.name === 'home') UI.refresh();
+    }, 1200);
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState !== 'visible') return;
       let n = 0;

@@ -375,7 +375,10 @@ label.tx-row { cursor: pointer; }
 .empty-t { margin: 6px 0 0; font-size: 16px; font-weight: 800; color: var(--ink); }
 .empty-b { margin: 0 0 10px; max-width: 30ch; font-size: 13.5px; line-height: 1.5; font-weight: 600; color: var(--muted); }
 .fatal { padding: 60px 4px; }
-.fatal p { color: var(--muted); line-height: 1.5; }
+.fatal { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.fatal h1 { margin: 4px 0 0; }
+.fatal p { margin: 0; color: var(--muted); line-height: 1.5; }
+.fatal .btn { margin-top: 8px; }
 
 /* ---------- categories manager ---------- */
 .cat-row { display: flex; align-items: center; }

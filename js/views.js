@@ -27,7 +27,10 @@
       if (MT.db.memory) h += `<div class="banner warn">${ic('alert', 18, 2)}<p><b>Preview mode.</b> Storage isn’t available here, so anything you add disappears when you close this page.</p></div>`;
       if (S.hasExamples()) h += `<div class="banner">${ic('spark', 18, 2)}<p>You’re looking at <b>example data</b>. Remove it before you start logging for real.</p><button class="btn btn-sm btn-soft press" data-act="clear-examples">Remove</button></div>`;
       const last = S.meta.lastFileBackup;
-      if (!MT.db.memory && S.tx.some((t) => !t.example) && (!last || Date.now() - last > 3 * 86400000)) {
+      const unprotected = !MT.db.memory && !MT.PREVIEW && UI.persisted === false && S.tx.some((t) => !t.example);
+      if (unprotected) {
+        h += `<div class="banner warn">${ic('alert', 18, 2)}<p><b>Storage not protected.</b> Your phone could clear this app’s data to free up space. ${last ? 'Last backup file: ' + U.ago(last) + '.' : 'Save a backup file now.'}</p><button class="btn btn-sm btn-primary press" data-act="backup-now">Back up</button></div>`;
+      } else if (!MT.db.memory && S.tx.some((t) => !t.example) && (!last || Date.now() - last > 3 * 86400000)) {
         h += `<div class="banner">${ic('shield', 18, 2)}<p>${last ? 'Your last backup file was ' + U.ago(last) + '.' : 'You haven’t saved a backup file yet.'} Save one so nothing can be lost.</p><button class="btn btn-sm btn-primary press" data-act="backup-now">Back up</button></div>`;
       }
       /* balance */
@@ -849,25 +852,7 @@
     },
     after(el) {
       UI.bindImport(el);
-      el.querySelector('#restore-file').addEventListener('change', async (e) => {
-        const f = e.target.files && e.target.files[0];
-        e.target.value = '';
-        if (!f) return;
-        try {
-          const text = await f.text();
-          let obj;
-          try {
-            obj = JSON.parse(text);
-          } catch (err) {
-            throw new Error('That file couldn’t be read. Pick a .json backup saved from this app.');
-          }
-          const v = S.validateImport(obj);
-          if (!v.ok) throw new Error(v.error);
-          MT.sheets.restorePreview(v, f.name);
-        } catch (err) {
-          UI.error(err);
-        }
-      });
+      UI.bindRestore(el);
       S.listSnapshots()
         .then((snaps) => {
           const box = el.querySelector('#snap-list');
@@ -950,6 +935,32 @@
     } catch (e) {
       UI.error(e);
     }
+  };
+
+  /* Restore from a backup file: always previewed before anything changes */
+  UI.bindRestore = (root) => {
+    const inp = root.querySelector('#restore-file');
+    if (!inp) return;
+    inp.addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      try {
+        const text = await f.text();
+        let obj;
+        try {
+          obj = JSON.parse(text);
+        } catch (err) {
+          throw new Error('That file couldn’t be read. Pick a .json backup saved from this app.');
+        }
+        const v = S.validateImport(obj);
+        if (!v.ok) throw new Error(v.error);
+        if (UI.sheets.length) await UI.closeSheet();
+        MT.sheets.restorePreview(v, f.name);
+      } catch (err) {
+        UI.error(err);
+      }
+    });
   };
 
   /* Money Lover import: read the file on the phone, then show a preview */

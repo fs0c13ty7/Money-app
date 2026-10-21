@@ -631,8 +631,11 @@
       label: 'Welcome',
       cls: 'welcome-sheet',
       render: () =>
-        `<div class="form"><span class="tile tile-xl c-blue">${ic('wallet', 30, 1.8)}</span><h2 class="sheet-title">Welcome to Money Tracker</h2><p class="sheet-text">Everything you log stays on this phone. To start, enter what’s in your account right now. You can bring in your Money Lover history later.</p><label class="field-block" for="ob-bal"><span class="lbl">Current balance</span><span class="money-input"><span>£</span><input id="ob-bal" inputmode="decimal" autocomplete="off" placeholder="0.00"></span></label><label class="field-inline" for="ob-neg"><input type="checkbox" id="ob-neg"> My account is overdrawn (minus)</label><button type="button" class="btn btn-primary btn-lg press" data-act="ob-start">Start tracking</button><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="ob-skip">Skip for now</button><button type="button" class="btn btn-text press" data-act="load-examples">${ic('spark', 16, 2)} Explore with example data first</button></div>`,
-      after: (el) => UI.bindImport(el),
+        `<div class="form"><span class="tile tile-xl c-blue">${ic('wallet', 30, 1.8)}</span><h2 class="sheet-title">Welcome to Money Tracker</h2><p class="sheet-text">Everything you log stays on this phone. To start, enter what’s in your account right now. You can bring in your Money Lover history later.</p><label class="field-block" for="ob-bal"><span class="lbl">Current balance</span><span class="money-input"><span>£</span><input id="ob-bal" inputmode="decimal" autocomplete="off" placeholder="0.00"></span></label><label class="field-inline" for="ob-neg"><input type="checkbox" id="ob-neg"> My account is overdrawn (minus)</label><button type="button" class="btn btn-primary btn-lg press" data-act="ob-start">Start tracking</button><label class="btn btn-soft press" for="restore-file">${ic('history', 18, 2)} Restore from a backup file<input type="file" id="restore-file" accept="application/json,.json" class="sr"></label><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="ob-skip">Skip for now</button><button type="button" class="btn btn-text press" data-act="load-examples">${ic('spark', 16, 2)} Explore with example data first</button></div>`,
+      after: (el) => {
+        UI.bindImport(el);
+        UI.bindRestore(el);
+      },
       onClose: () => {
         if (!S.meta.onboarded) S.setMeta('onboarded', true).catch(() => {});
       }
@@ -705,6 +708,28 @@
   };
   A['imp-mode'] = (el) => M.imp && M.imp.mode(el.getAttribute('data-val'));
   A['imp-go'] = (el) => M.imp && M.imp.go(el);
+
+  /* ================= DATA MISSING ================= */
+  /* Shown when this phone had entries before but storage now opens empty */
+  M.missingData = (mark) => {
+    UI.openSheet({
+      label: 'Your entries are missing',
+      cls: 'welcome-sheet',
+      render: () =>
+        `<div class="form"><span class="tile tile-xl c-amber">${ic('alert', 30, 1.8)}</span><h2 class="sheet-title">Your entries are missing</h2><p class="sheet-text">This app had ${Number(mark.n).toLocaleString('en-GB')} transactions on this phone${mark.at ? ', last seen ' + esc(U.ago(mark.at)) : ''}, but its storage has come back empty. App updates never delete your data, so something on the phone cleared it.</p><p class="sheet-text">Restore your latest backup file, or import from Money Lover again.</p><label class="btn btn-primary btn-lg press" for="restore-file">${ic('history', 18, 2)} Restore from a backup file<input type="file" id="restore-file" accept="application/json,.json" class="sr"></label><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="missing-fresh">Start fresh instead</button></div>`,
+      after: (el) => {
+        UI.bindRestore(el);
+        UI.bindImport(el);
+      }
+    });
+  };
+  A['missing-fresh'] = async () => {
+    try {
+      localStorage.removeItem('mt-had-data');
+    } catch (e) {}
+    await UI.closeSheet();
+    M.onboarding();
+  };
 
   /* ================= RESTORE PREVIEW ================= */
   M.restorePreview = (v, source) => {
