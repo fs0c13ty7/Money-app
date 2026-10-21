@@ -6,7 +6,7 @@
   const S = MT.store;
   const UI = MT.ui;
   const A = UI.actions;
-  MT.VERSION = '1.3.0';
+  MT.VERSION = '1.3.1';
 
   /* ---------- Example data: flagged so it can be removed in one tap ---------- */
   MT.examples = () => {
@@ -121,6 +121,8 @@
     }
 
     setTimeout(() => S.snapshotDaily().catch(() => {}), 1500);
+    /* ask the browser to protect our storage every launch; Chrome grants it once the app is installed or used often */
+    setTimeout(() => MT.db.persist(), 2500);
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState !== 'visible') return;
       let n = 0;

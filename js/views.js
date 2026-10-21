@@ -367,6 +367,17 @@
       const amt = (t.amount / 100).toFixed(2);
       return (t.name || '').toLowerCase().indexOf(q) >= 0 || (t.note || '').toLowerCase().indexOf(q) >= 0 || c.indexOf(q) >= 0 || (qMoney && /^[\d.]+$/.test(qMoney) && amt.indexOf(qMoney) === 0);
     });
+    /* best matches first: name starts with it, then a word in the name does, then anywhere; newest first within each */
+    const esc_re = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordStart = new RegExp('(^|[^a-z0-9])' + esc_re, 'i');
+    const rank = (t) => {
+      const n = (t.name || S.cat(t.categoryId).name).toLowerCase();
+      if (n.indexOf(q) === 0) return 0;
+      if (wordStart.test(n)) return 1;
+      if (n.indexOf(q) >= 0) return 2;
+      return 3;
+    };
+    res.sort((a, b) => rank(a) - rank(b));
     if (!res.length) return UI.empty('search', 'No matches', 'Try fewer letters, or check the Expenses / Income filter.');
     const total = res.reduce((a, t) => a + S.signed(t), 0);
     let h = `<div class="res-head"><span>${res.length} result${res.length === 1 ? '' : 's'}</span><span>${U.fmt(total, { plus: true })}</span></div><section class="card list-card">`;
