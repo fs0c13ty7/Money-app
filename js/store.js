@@ -38,7 +38,7 @@
 
   const ADJUST = { id: 'adjust', name: 'Balance adjustment', type: 'system', icon: 'sliders', color: 'slate', builtIn: true, system: true };
 
-  const DEFAULT_SETTINGS = { theme: 'system', hideOnOpen: false, weekStart: 1 };
+  const DEFAULT_SETTINGS = { theme: 'system', hideOnOpen: false, weekStart: 1, monthMode: 'calendar', payDay: 28 };
   const DEFAULT_META = {
     onboarded: false,
     lastFileBackup: null,
@@ -48,7 +48,8 @@
   };
 
   S.onChange = (fn) => S.listeners.push(fn);
-  S.emit = () => S.listeners.forEach((fn) => {
+  S.rev = 0;
+  S.emit = () => (S.rev++, S.listeners).forEach((fn) => {
     try {
       fn();
     } catch (e) {
@@ -250,6 +251,16 @@
     S.emit();
   };
 
+  /* keep an entry in the balance but out of charts and totals, or bring it back */
+  S.setExcluded = async (id, on) => {
+    const t = S.tx.find((x) => x.id === id);
+    if (!t) return null;
+    const c = Object.assign({}, t, { excluded: !!on, updatedAt: Date.now() });
+    await D.write([{ store: 'tx', put: c }]);
+    S.tx[S.tx.indexOf(t)] = c;
+    S.emit();
+    return c;
+  };
   S.signed = (t) => (t.type === 'income' ? t.amount : -t.amount);
   S.balance = () => S.tx.reduce((a, t) => a + S.signed(t), 0);
   S.isStat = (t) => t.categoryId !== 'adjust' && !t.excluded;
@@ -281,21 +292,120 @@
     });
     return m;
   };
-  /* cumulative spend per day of a month: array index 0 = day 1 */
-  S.monthCumulative = (monthIso) => {
-    const start = U.monthStart(monthIso);
-    const end = U.monthEnd(monthIso);
-    const days = Number(end.slice(8));
+  S.firstDate = () => (S.tx.length ? S.tx[S.tx.length - 1].date : null);
+
+  /* ---------- "Months": calendar (1st to the end) or pay months (payday to the day before the next one) ----------
+     A pay month starts the day a Salary entry lands. Until it lands, the usual payday is assumed,
+     moved to the Friday before when it falls on a weekend. A pay month is named after the month it ends in. */
+  S.payMode = () => S.settings().monthMode === 'payday';
+  S.payDay = () => Math.min(31, Math.max(1, Number(S.settings().payDay) || 28));
+  let payCache = { key: '', b: {}, sal: [] };
+  const payKey = () => S.payDay() + '|' + S.rev + '|' + S.tx.length;
+  function salaries() {
+    return S.tx
+      .filter((t) => t.type === 'income' && t.categoryId === 'salary' && !t.example)
+      .map((t) => ({ date: t.date, amount: t.amount }))
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+  }
+  /* the day pay month (y, m0) starts on: payday in calendar month m0 of year y */
+  function boundary(y, m0) {
+    const k = payKey();
+    if (payCache.key !== k) payCache = { key: k, b: {}, sal: salaries() };
+    const t0 = new Date(y, m0, 1);
+    const id = t0.getFullYear() + '-' + t0.getMonth();
+    if (payCache.b[id]) return payCache.b[id];
+    const day = Math.min(S.payDay(), U.dim(t0.getFullYear(), t0.getMonth()));
+    const d = new Date(t0.getFullYear(), t0.getMonth(), day);
+    if (d.getDay() === 6) d.setDate(d.getDate() - 1);
+    else if (d.getDay() === 0) d.setDate(d.getDate() - 2);
+    const nominal = U.iso(d);
+    /* pay that landed up to 7 days early (Christmas, bank holidays) starts the month early */
+    const from = U.addDays(nominal, -7);
+    const inWin = payCache.sal.filter((s) => s.date >= from && s.date <= nominal);
+    let b = nominal;
+    if (inWin.length) {
+      const top = Math.max.apply(null, inWin.map((s) => s.amount));
+      b = inWin.find((s) => s.amount >= top / 2).date;
+    }
+    payCache.b[id] = b;
+    return b;
+  }
+  const ym = (iso) => [Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1];
+  /* start of the month containing iso */
+  S.mStart = (iso) => {
+    if (!S.payMode()) return U.monthStart(iso);
+    const p = ym(iso);
+    let best = null;
+    for (let k = -1; k <= 1; k++) {
+      const b = boundary(p[0], p[1] + k);
+      if (b <= iso && (!best || b > best)) best = b;
+    }
+    return best || boundary(p[0], p[1] - 2);
+  };
+  /* start of the month n months away from the one containing iso */
+  S.mAdd = (iso, n) => {
+    let s = S.mStart(iso);
+    if (!S.payMode()) return U.addMonths(s, n, 1);
+    const step = n > 0 ? 1 : -1;
+    for (let i = 0; i < Math.abs(n); i++) s = step > 0 ? S.mStart(U.addDays(S.mEnd(s), 1)) : S.mStart(U.addDays(s, -1));
+    return s;
+  };
+  /* last day of the month containing iso */
+  S.mEnd = (iso) => {
+    if (!S.payMode()) return U.monthEnd(iso);
+    const s = S.mStart(iso);
+    const p = ym(s);
+    let next = null;
+    for (let k = 0; k <= 2; k++) {
+      const b = boundary(p[0], p[1] + k);
+      if (b > s && (!next || b < next)) next = b;
+    }
+    return U.addDays(next, -1);
+  };
+  S.mDays = (iso) => U.daysBetween(S.mStart(iso), S.mEnd(iso)) + 1;
+  /* the date a month is named after: its start for calendar months, its end for pay months */
+  const nameDate = (iso) => (S.payMode() ? S.mEnd(iso) : S.mStart(iso));
+  S.mName = (iso) => U.MONL[U.parse(nameDate(iso)).getMonth()];
+  S.mShortName = (iso) => U.MON[U.parse(nameDate(iso)).getMonth()];
+  S.mLabel = (iso) => U.fmtMonth(nameDate(iso));
+  S.mYear = (iso) => Number(nameDate(iso).slice(0, 4));
+  /* "28 Sep – 27 Oct", only for pay months */
+  S.mSpan = (iso) => (S.payMode() ? U.fmtShortDate(S.mStart(iso)) + ' – ' + U.fmtShortDate(S.mEnd(iso)) : '');
+  /* the month named (y, m0): for pay months, the one ending in calendar month m0 */
+  S.mNamed = (y, m0) => {
+    const ms = y + '-' + String(m0 + 1).padStart(2, '0') + '-01';
+    if (!S.payMode()) return ms;
+    const want = ms.slice(0, 7);
+    for (const k of [-1, 0, -2, 1]) {
+      const st = S.mStart(boundary(y, m0 + k));
+      if (S.mEnd(st).slice(0, 7) === want) return st;
+    }
+    return S.mStart(U.monthEnd(ms));
+  };
+  /* the usual payday in recent salary history, or null */
+  S.detectPayDay = () => {
+    const since = U.addDays(U.today(), -400);
+    const n = {};
+    salaries()
+      .filter((s) => s.date >= since)
+      .forEach((s) => (n[Number(s.date.slice(8))] = (n[Number(s.date.slice(8))] || 0) + 1));
+    const best = Object.keys(n).sort((a, b) => n[b] - n[a])[0];
+    return best ? Number(best) : null;
+  };
+
+  /* cumulative spend per day of a month: array index 0 = its first day */
+  S.monthCumulative = (iso) => {
+    const start = S.mStart(iso);
+    const end = S.mEnd(iso);
     const daily = S.dailySpend(start, end);
     const out = [];
     let run = 0;
-    for (let d = 1; d <= days; d++) {
-      run += daily[start.slice(0, 8) + String(d).padStart(2, '0')] || 0;
+    for (let d = start; d <= end; d = U.addDays(d, 1)) {
+      run += daily[d] || 0;
       out.push(run);
     }
     return out;
   };
-  S.firstDate = () => (S.tx.length ? S.tx[S.tx.length - 1].date : null);
 
   /* ---------- Recurring ---------- */
   S.nextOcc = (r, iso) => {
@@ -437,7 +547,7 @@
 
   S.validateImport = (obj) => {
     if (!obj || obj.app !== 'money-tracker' || !Array.isArray(obj.tx) || !Array.isArray(obj.categories)) {
-      return { ok: false, error: 'This isn’t a Money Tracker backup file.' };
+      return { ok: false, error: 'This isn’t a Tally backup file.' };
     }
     const cats = obj.categories.filter((c) => c && typeof c.id === 'string' && typeof c.name === 'string');
     if (!cats.find((c) => c.id === 'adjust')) cats.push(Object.assign({}, ADJUST));

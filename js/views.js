@@ -13,14 +13,14 @@
 
   UI.act = { period: 'month', anchor: U.today(), cat: null };
   UI.homePeriod = 'month';
-  UI.insMonth = U.monthStart(U.today());
+  UI.insMonth = U.today();
 
   /* ================= HOME ================= */
   V.home = {
     render() {
       const today = U.today();
       const fc = X.forecast(today);
-      const tot = S.totals(U.monthStart(today), today);
+      const tot = S.totals(S.mStart(today), today);
       const d = U.parse(today);
       let h = `<header class="appbar topbar"><div><p class="eyebrow">${U.dowLong(today)} ${d.getDate()} ${U.MONL[d.getMonth()]}</p><h1 class="h1">Overview</h1></div><button class="icon-btn outline press" data-act="go" data-to="search" aria-label="Search transactions">${ic('search', 20, 1.9)}</button></header>`;
       h += `<div class="stack">`;
@@ -44,7 +44,7 @@
         h += `<div class="alert ${a.kind}" data-alert="${esc(a.id)}"><span class="alert-ic">${ic(a.icon, 18, 2)}</span><button class="alert-main" data-act="edit-tx" data-id="${esc(a.txId)}"><b>${esc(a.title)}</b><span>${esc(a.body)}</span></button><button class="icon-btn sm" data-act="dismiss-alert" data-id="${esc(a.id)}" aria-label="Dismiss">${ic('close', 16, 2)}</button></div>`;
       });
       /* month card */
-      h += `<section class="card"><div class="card-head"><h2 class="card-title">${U.MONL[d.getMonth()]} so far</h2><span class="muted sm">Day ${fc.dayIdx} of ${fc.days}</span></div>`;
+      h += `<section class="card"><div class="card-head"><h2 class="card-title">${S.mName(today)} so far</h2><span class="muted sm">Day ${fc.dayIdx} of ${fc.days}</span></div>`;
       h += `<div class="pair"><div><span class="lbl">Spent</span><span class="big">${U.fmt(tot.out)}</span></div><div><span class="lbl">Income</span><span class="big in">${U.fmt(tot.in, { plus: true })}</span></div></div>`;
       h += pacePill(fc);
       if (S.tx.length) {
@@ -54,7 +54,7 @@
       h += `<button class="link-row press" data-act="tab" data-to="insights">See insights ${ic('chevR', 16, 2)}</button></section>`;
       /* top spending */
       const p = UI.homePeriod;
-      const from = p === 'week' ? U.weekStart(today, S.settings().weekStart) : U.monthStart(today);
+      const from = p === 'week' ? U.weekStart(today, S.settings().weekStart) : S.mStart(today);
       const cats = S.byCategory(from, today, 'expense');
       const totalOut = cats.reduce((a, c) => a + c.total, 0);
       h += `<section class="card"><div class="card-head"><h2 class="card-title">Top spending</h2>${UI.seg('home-period', [{ id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }], p, 'home-period', 'seg-sm')}</div>`;
@@ -159,9 +159,11 @@
       const label = f.getMonth() === t.getMonth() ? `${f.getDate()} – ${t.getDate()} ${U.MON[t.getMonth()]}` : `${f.getDate()} ${U.MON[f.getMonth()]} – ${t.getDate()} ${U.MON[t.getMonth()]}`;
       return { from: from, to: to, label: label };
     }
-    return { from: U.monthStart(anchor), to: U.monthEnd(anchor), label: U.fmtMonth(anchor) };
+    return { from: S.mStart(anchor), to: S.mEnd(anchor), label: S.mLabel(anchor), sub: S.mSpan(anchor) };
   }
   UI.rangeOf = rangeOf;
+  /* a range title, with the pay month's dates underneath when months run from payday */
+  UI.rangeText = (label, sub) => (sub ? `<span class="range-stack"><span>${esc(label)}</span><small>${esc(sub)}</small></span>` : esc(label));
   V.activity = {
     render() {
       const st = UI.act;
@@ -172,7 +174,7 @@
       h += UI.seg('Period', [{ id: 'day', label: 'Day' }, { id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }], st.period, 'act-period');
       h += `<div class="swipe-area${UI.actEnter ? ' ' + UI.actEnter : ''}">`;
       UI.actEnter = null;
-      h += `<div class="range-nav"><button class="icon-btn press" data-act="act-step" data-dir="-1" aria-label="Previous">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-period" aria-label="Choose a ${st.period}: ${esc(r.label)}">${esc(r.label)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="act-step" data-dir="1" aria-label="Next"${canNext ? '' : ' disabled'}>${ic('chevR', 20, 2)}</button></div>`;
+      h += `<div class="range-nav"><button class="icon-btn press" data-act="act-step" data-dir="-1" aria-label="Previous">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-period" aria-label="Choose a ${st.period}: ${esc(r.label)}">${UI.rangeText(r.label, r.sub)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="act-step" data-dir="1" aria-label="Next"${canNext ? '' : ' disabled'}>${ic('chevR', 20, 2)}</button></div>`;
       const all = S.range(r.from, r.to);
       const tot = S.totals(r.from, r.to);
       h += `<section class="card summary3"><div><span class="lbl">Money in</span><span class="mid in">${U.fmt(tot.in, { plus: true })}</span></div><div><span class="lbl">Money out</span><span class="mid">${U.fmt(-tot.out)}</span></div><div class="r"><span class="lbl">Net</span><span class="mid">${U.fmt(tot.net, { plus: true })}</span></div></section>`;
@@ -220,7 +222,7 @@
     let a = st.anchor;
     if (st.period === 'day') a = U.addDays(a, dir);
     else if (st.period === 'week') a = U.addDays(a, 7 * dir);
-    else a = U.addMonths(U.monthStart(a), dir, 1);
+    else a = S.mAdd(a, dir);
     if (a > U.today()) a = U.today();
     st.anchor = a;
     UI.actEnter = U.reducedMotion() ? null : dir > 0 ? 'in-r' : 'in-l';
@@ -233,6 +235,14 @@
   (function () {
     let st = null;
     let swallowClick = false;
+    /* a long-press on a row takes over: drop any swipe in progress */
+    UI.cancelSwipe = () => {
+      if (!st) return;
+      st.el.classList.remove('dragging');
+      st.el.style.transform = '';
+      st.el.style.opacity = '';
+      st = null;
+    };
     const width = () => Math.min(window.innerWidth, 560);
     document.addEventListener(
       'pointerdown',
@@ -428,14 +438,15 @@
   /* ================= INSIGHTS ================= */
   V.insights = {
     render() {
-      const m = UI.insMonth;
+      const m = S.mStart(UI.insMonth);
+      UI.insMonth = m;
       const today = U.today();
-      const isCurrent = m === U.monthStart(today);
-      const end = isCurrent ? today : U.monthEnd(m);
+      const isCurrent = m === S.mStart(today);
+      const end = isCurrent ? today : S.mEnd(m);
       const fc = X.forecast(m);
       const tot = S.totals(m, end);
       let h = `<header class="appbar topbar"><h1 class="h1">Insights</h1></header><div class="stack">`;
-      h += `<div class="range-nav"><button class="icon-btn press" data-act="ins-step" data-dir="-1" aria-label="Previous month">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-ins-month" aria-label="Choose a month: ${U.fmtMonth(m)}">${U.fmtMonth(m)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="ins-step" data-dir="1" aria-label="Next month"${isCurrent ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div>`;
+      h += `<div class="range-nav"><button class="icon-btn press" data-act="ins-step" data-dir="-1" aria-label="Previous month">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-ins-month" aria-label="Choose a month: ${S.mLabel(m)}">${UI.rangeText(S.mLabel(m), S.mSpan(m))}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="ins-step" data-dir="1" aria-label="Next month"${isCurrent ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div>`;
       if (!S.tx.length) {
         h += UI.empty('insights', 'Charts appear as you log', 'Once you’ve added a few transactions, this is where you’ll see where your money goes.', `<button class="btn btn-primary press" data-act="quick-add">${ic('plus', 18, 2.2)} Add a transaction</button>`);
         return h + '</div>';
@@ -443,9 +454,9 @@
       /* headline */
       h += `<section class="card">`;
       if (isCurrent && fc.projection) {
-        h += `<p class="lbl">Forecast for ${U.MONL[U.parse(m).getMonth()]}</p><p class="headline">${U.fmt(fc.projection)}</p><p class="muted">You’ve spent ${U.fmt(fc.spent)} so far${fc.avg ? `. A typical month ends around ${U.fmt(fc.avg[fc.days - 1])}` : ''}.</p>`;
+        h += `<p class="lbl">Forecast for ${S.mName(m)}</p><p class="headline">${U.fmt(fc.projection)}</p><p class="muted">You’ve spent ${U.fmt(fc.spent)} so far${fc.avg ? `. A typical month ends around ${U.fmt(fc.avg[fc.days - 1])}` : ''}.</p>`;
       } else {
-        h += `<p class="lbl">Spent in ${U.MONL[U.parse(m).getMonth()]}${isCurrent ? ' so far' : ''}</p><p class="headline">${U.fmt(tot.out)}</p>${fc.avg && !isCurrent ? `<p class="muted">Your ${fc.avgMonths}-month average before this was ${U.fmt(fc.avg[fc.days - 1])}.</p>` : ''}`;
+        h += `<p class="lbl">Spent in ${S.mName(m)}${isCurrent ? ' so far' : ''}</p><p class="headline">${U.fmt(tot.out)}</p>${fc.avg && !isCurrent ? `<p class="muted">Your ${fc.avgMonths}-month average before this was ${U.fmt(fc.avg[fc.days - 1])}.</p>` : ''}`;
       }
       h += MT.charts.monthLine(fc, { animate: UI.entering }) + lineLegend(fc) + `</section>`;
       /* stat tiles */
@@ -484,10 +495,9 @@
       /* 6 months */
       const months = [];
       for (let k = 5; k >= 0; k--) {
-        const ms = U.addMonths(m, -k, 1);
-        const t = S.totals(ms, U.monthEnd(ms));
-        const dd = U.parse(ms);
-        months.push({ label: U.MON[dd.getMonth()], full: U.fmtMonth(ms), in: t.in, out: t.out });
+        const ms = S.mAdd(m, -k);
+        const t = S.totals(ms, S.mEnd(ms));
+        months.push({ label: S.mShortName(ms), full: S.mLabel(ms) + (S.payMode() ? ' (' + S.mSpan(ms) + ')' : ''), in: t.in, out: t.out });
       }
       h += `<section class="card"><div class="card-head"><h2 class="card-title">Last 6 months</h2></div><div class="legend top"><span><i class="sw sw-out"></i>Spent</span><span><i class="sw sw-in"></i>Income</span></div>${MT.charts.monthBars(months)}<p class="muted sm">Tap a month for the numbers.</p></section>`;
       h += `</div>`;
@@ -517,7 +527,7 @@
       value: UI.insMonth,
       title: 'Choose a month',
       onPick: (iso) => {
-        UI.insMonth = U.monthStart(iso);
+        UI.insMonth = iso;
         UI.entering = true;
         UI.refresh();
       }
@@ -525,7 +535,7 @@
   };
   A['ins-step'] = (el) => {
     const dir = Number(el.getAttribute('data-dir'));
-    const next = U.addMonths(UI.insMonth, dir, 1);
+    const next = S.mAdd(UI.insMonth, dir);
     if (next > U.today()) return;
     UI.insMonth = next;
     UI.entering = true;
@@ -549,8 +559,16 @@
       h += navRow('categories', 'more', 'blue', 'Categories', S.catsOf('expense').length + ' expense · ' + S.catsOf('income').length + ' income');
       h += navRow('recurring', 'repeat', 'purple', 'Recurring transactions', S.rec.filter((r) => !r.paused).length + ' active');
       h += `</section>`;
-      h += `<h2 class="section-label">Preferences</h2><section class="card"><div class="set-row"><span class="set-text"><b>Week starts on</b></span>${UI.seg('Week start', [{ id: '1', label: 'Mon' }, { id: '0', label: 'Sun' }], String(st.weekStart), 'weekstart', 'seg-sm')}</div><div class="set-row bordered"><span class="set-text"><b>Currency</b></span><span class="muted">GBP (£)</span></div></section>`;
-      h += `<p class="foot-note">Money Tracker · version ${MT.VERSION}<br><span id="storage-status">Checking storage…</span></p>`;
+      h += `<h2 class="section-label">Preferences</h2><section class="card">`;
+      h += `<div class="set-row"><span class="set-text"><b>Months run</b></span>${UI.seg('Months run', [{ id: 'calendar', label: '1st – end' }, { id: 'payday', label: 'Payday' }], st.monthMode === 'payday' ? 'payday' : 'calendar', 'month-mode', 'seg-sm')}</div>`;
+      if (st.monthMode === 'payday') {
+        const pd = S.payDay();
+        h += `<div class="stepper-row"><span class="set-text"><b>Usual payday</b></span><div class="stepper" role="group" aria-label="Usual payday"><button type="button" class="step press" data-act="pay-day" data-d="-1" aria-label="Earlier"${pd <= 1 ? ' disabled' : ''}>${ic('minus', 18, 2.4)}</button><output aria-live="polite">${U.ordinal(pd)}</output><button type="button" class="step press" data-act="pay-day" data-d="1" aria-label="Later"${pd >= 31 ? ' disabled' : ''}>${ic('plus', 18, 2.4)}</button></div></div>`;
+        const cur = S.mStart(U.today());
+        h += `<p class="muted sm pad-t">Each month starts the day your <b>Salary</b> lands, so it holds a full pay cycle of bills. Until pay arrives, the ${U.ordinal(pd)} is assumed, or the Friday before if it’s a weekend. Months are named after the month they end in: this one is <b>${esc(S.mName(cur))}</b>, ${esc(S.mSpan(cur))}.</p>`;
+      }
+      h += `<div class="set-row bordered"><span class="set-text"><b>Week starts on</b></span>${UI.seg('Week start', [{ id: '1', label: 'Mon' }, { id: '0', label: 'Sun' }], String(st.weekStart), 'weekstart', 'seg-sm')}</div><div class="set-row bordered"><span class="set-text"><b>Currency</b></span><span class="muted">GBP (£)</span></div></section>`;
+      h += `<p class="foot-note">Tally · version ${MT.VERSION}<br><span id="storage-status">Checking storage…</span></p>`;
       h += `</div>`;
       return h;
     },
@@ -591,6 +609,29 @@
     el.setAttribute('aria-checked', String(on));
     try {
       await S.setSetting('hideOnOpen', on);
+    } catch (e) {
+      UI.error(e);
+    }
+  };
+  A['month-mode'] = async (el) => {
+    const v = el.getAttribute('data-val');
+    try {
+      if (v === 'payday' && !S.settings().payDayChosen) {
+        const d = S.detectPayDay();
+        if (d) await S.setSetting('payDay', d);
+      }
+      await S.setSetting('monthMode', v);
+      UI.refresh();
+    } catch (e) {
+      UI.error(e);
+    }
+  };
+  A['pay-day'] = async (el) => {
+    const d = Math.min(31, Math.max(1, S.payDay() + Number(el.getAttribute('data-d'))));
+    try {
+      await S.setSetting('payDay', d);
+      await S.setSetting('payDayChosen', true);
+      UI.refresh();
     } catch (e) {
       UI.error(e);
     }
@@ -920,7 +961,7 @@
   }
   A['backup-now'] = async () => {
     try {
-      download(backupBlob(), 'money-tracker-backup-' + stamp() + '.json');
+      download(backupBlob(), 'tally-backup-' + stamp() + '.json');
       await S.setMeta('lastFileBackup', Date.now());
       UI.toast('Backup file saved to Downloads');
       UI.refresh();
@@ -930,9 +971,9 @@
   };
   A['backup-share'] = async () => {
     try {
-      const file = new File([backupBlob()], 'money-tracker-backup-' + stamp() + '.json', { type: 'application/json' });
+      const file = new File([backupBlob()], 'tally-backup-' + stamp() + '.json', { type: 'application/json' });
       if (!navigator.canShare || !navigator.canShare({ files: [file] })) throw new Error('Sharing files isn’t available here. Use “Save backup file” instead.');
-      await navigator.share({ files: [file], title: 'Money Tracker backup' });
+      await navigator.share({ files: [file], title: 'Tally backup' });
       await S.setMeta('lastFileBackup', Date.now());
       UI.toast('Backup sent');
       UI.refresh();
@@ -943,7 +984,7 @@
   };
   A['export-csv'] = () => {
     try {
-      download(new Blob(['﻿' + S.toCSV()], { type: 'text/csv' }), 'money-tracker-' + U.today() + '.csv');
+      download(new Blob(['﻿' + S.toCSV()], { type: 'text/csv' }), 'tally-' + U.today() + '.csv');
       UI.toast('Spreadsheet saved to Downloads');
     } catch (e) {
       UI.error(e);

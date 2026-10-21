@@ -1,6 +1,6 @@
 {
-  "name": "Money Tracker",
-  "short_name": "Money",
+  "name": "Tally",
+  "short_name": "Tally",
   "description": "A private, offline money tracker. Your data stays on your phone.",
   "id": "./",
   "start_url": "./",

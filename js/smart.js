@@ -146,18 +146,18 @@
 
   /* ---------- Forecast: where this month's spending is heading ---------- */
   X.forecast = (monthIso) => {
-    const start = U.monthStart(monthIso);
-    const days = Number(U.monthEnd(start).slice(8));
+    const start = S.mStart(monthIso);
+    const days = S.mDays(start);
     const today = U.today();
-    const isCurrent = U.monthStart(today) === start;
-    const dayIdx = isCurrent ? Number(today.slice(8)) : today > start ? days : 0;
+    const isCurrent = S.mStart(today) === start;
+    const dayIdx = isCurrent ? U.daysBetween(start, today) + 1 : today > start ? days : 0;
     const actual = S.monthCumulative(start);
     /* average cumulative of the previous 3 months that have data */
     const prev = [];
     for (let k = 1; k <= 3; k++) {
-      const ms = U.addMonths(start, -k, 1);
+      const ms = S.mAdd(start, -k);
       const first = S.firstDate();
-      if (!first || U.monthEnd(ms) < first) continue;
+      if (!first || S.mEnd(ms) < first) continue;
       const cum = S.monthCumulative(ms);
       if (cum[cum.length - 1] > 0) prev.push(cum);
     }

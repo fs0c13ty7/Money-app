@@ -20,14 +20,16 @@
   /* ================= QUICK ADD / EDIT ================= */
   M.txForm = (existing, preset) => {
     const isEdit = !!existing;
+    /* preset.copy: a transaction to duplicate as a new entry dated today */
+    const copy = !existing && preset && preset.copy ? preset.copy : null;
     const st = {
       id: existing ? existing.id : null,
-      type: existing ? existing.type : (preset && preset.type) || 'expense',
-      amt: existing ? trimAmt(existing.amount) : '0',
-      categoryId: existing ? existing.categoryId : null,
-      catTouched: isEdit,
-      name: existing ? existing.name : '',
-      note: existing ? existing.note : '',
+      type: existing ? existing.type : copy ? copy.type : (preset && preset.type) || 'expense',
+      amt: existing ? trimAmt(existing.amount) : copy ? trimAmt(copy.amount) : '0',
+      categoryId: existing ? existing.categoryId : copy ? copy.categoryId : null,
+      catTouched: isEdit || !!copy,
+      name: existing ? existing.name : copy ? copy.name : '',
+      note: existing ? existing.note : copy ? copy.note : '',
       date: existing ? existing.date : (preset && preset.date) || U.today(),
       repeat: false,
       saving: false,
@@ -58,7 +60,7 @@
         .join('');
 
     const render = () => {
-      let h = `<div class="qa"><div class="qa-head"><button type="button" class="icon-btn" data-act="sheet-close" aria-label="Close">${ic('close', 22, 2)}</button><h2 class="qa-title">${isEdit ? 'Edit transaction' : 'New transaction'}</h2>${isEdit ? `<button type="button" class="icon-btn danger" data-act="qa-delete" aria-label="Delete this transaction">${ic('trash', 20, 1.9)}</button>` : '<span class="icon-spacer"></span>'}</div>`;
+      let h = `<div class="qa"><div class="qa-head"><button type="button" class="icon-btn" data-act="sheet-close" aria-label="Close">${ic('close', 22, 2)}</button><h2 class="qa-title">${isEdit ? 'Edit transaction' : copy ? 'Duplicate' : 'New transaction'}</h2>${isEdit ? `<button type="button" class="icon-btn danger" data-act="qa-delete" aria-label="Delete this transaction">${ic('trash', 20, 1.9)}</button>` : '<span class="icon-spacer"></span>'}</div>`;
       h += `<div class="qa-scroll">`;
       h += UI.seg('qa-type', [{ id: 'expense', label: 'Expense' }, { id: 'income', label: 'Income' }], st.type, 'qa-type');
       h += `<button type="button" class="qa-amount" data-act="qa-keypad" aria-label="Amount"><span class="qa-amt" aria-live="polite"></span></button>`;
@@ -631,7 +633,7 @@
       label: 'Welcome',
       cls: 'welcome-sheet',
       render: () =>
-        `<div class="form"><span class="tile tile-xl c-blue">${ic('wallet', 30, 1.8)}</span><h2 class="sheet-title">Welcome to Money Tracker</h2><p class="sheet-text">Everything you log stays on this phone. To start, enter what’s in your account right now. You can bring in your Money Lover history later.</p><label class="field-block" for="ob-bal"><span class="lbl">Current balance</span><span class="money-input"><span>£</span><input id="ob-bal" inputmode="decimal" autocomplete="off" placeholder="0.00"></span></label><label class="field-inline" for="ob-neg"><input type="checkbox" id="ob-neg"> My account is overdrawn (minus)</label><button type="button" class="btn btn-primary btn-lg press" data-act="ob-start">Start tracking</button><label class="btn btn-soft press" for="restore-file">${ic('history', 18, 2)} Restore from a backup file<input type="file" id="restore-file" accept="application/json,.json" class="sr"></label><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="ob-skip">Skip for now</button><button type="button" class="btn btn-text press" data-act="load-examples">${ic('spark', 16, 2)} Explore with example data first</button></div>`,
+        `<div class="form"><span class="tile tile-xl c-blue">${ic('tally', 30, 2)}</span><h2 class="sheet-title">Welcome to Tally</h2><p class="sheet-text">Everything you log stays on this phone. To start, enter what’s in your account right now. You can bring in your Money Lover history later.</p><label class="field-block" for="ob-bal"><span class="lbl">Current balance</span><span class="money-input"><span>£</span><input id="ob-bal" inputmode="decimal" autocomplete="off" placeholder="0.00"></span></label><label class="field-inline" for="ob-neg"><input type="checkbox" id="ob-neg"> My account is overdrawn (minus)</label><button type="button" class="btn btn-primary btn-lg press" data-act="ob-start">Start tracking</button><label class="btn btn-soft press" for="restore-file">${ic('history', 18, 2)} Restore from a backup file<input type="file" id="restore-file" accept="application/json,.json" class="sr"></label><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="ob-skip">Skip for now</button><button type="button" class="btn btn-text press" data-act="load-examples">${ic('spark', 16, 2)} Explore with example data first</button></div>`,
       after: (el) => {
         UI.bindImport(el);
         UI.bindRestore(el);
@@ -715,9 +717,11 @@
     const today = U.today();
     const first = S.firstDate() || today;
     const minYear = Number(first.slice(0, 4));
-    const maxYear = Number(today.slice(0, 4));
-    let view = o.mode === 'month' ? 'months' : 'days';
-    let year = Number(o.value.slice(0, 4));
+    /* month mode follows the month setting (pay months are named after the month they end in); the day calendar is always calendar months */
+    const pm = o.mode === 'month';
+    const maxYear = pm ? S.mYear(today) : Number(today.slice(0, 4));
+    let view = pm ? 'months' : 'days';
+    let year = pm ? S.mYear(o.value) : Number(o.value.slice(0, 4));
     let month = U.monthStart(o.value);
     let entry = null;
     const pick = async (iso) => {
@@ -727,14 +731,16 @@
     const monthsHtml = () => {
       let h = `<div class="pk-nav"><button class="icon-btn press" data-act="pk-year" data-d="-1" aria-label="Previous year"${year <= minYear ? ' disabled' : ''}>${ic('chevL', 20, 2)}</button><span class="pk-title">${year}</span><button class="icon-btn press" data-act="pk-year" data-d="1" aria-label="Next year"${year >= maxYear ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div><div class="pk-months">`;
       for (let m = 0; m < 12; m++) {
-        const ms = year + '-' + String(m + 1).padStart(2, '0') + '-01';
+        const ms = pm ? S.mNamed(year, m) : year + '-' + String(m + 1).padStart(2, '0') + '-01';
         const future = ms > today;
-        const t = future ? null : S.totals(ms, U.monthEnd(ms));
-        const sel = ms === U.monthStart(o.value);
-        const cur = ms === U.monthStart(today);
+        const t = future ? null : S.totals(ms, pm ? S.mEnd(ms) : U.monthEnd(ms));
+        const sel = pm ? ms === S.mStart(o.value) : ms === U.monthStart(o.value);
+        const cur = pm ? ms === S.mStart(today) : ms === U.monthStart(today);
         h += `<button class="pk-month press${sel ? ' sel' : ''}${cur ? ' cur' : ''}" data-act="pk-month" data-val="${ms}"${future ? ' disabled' : ''} aria-label="${U.MONL[m]} ${year}${t && t.out ? ', spent ' + U.fmt(t.out) : ''}"><b>${U.MON[m]}</b><span>${t && t.out ? U.fmtShort(t.out) : '—'}</span></button>`;
       }
-      return h + `</div><div class="btn-row"><button class="btn press" data-act="sheet-close">Cancel</button><button class="btn btn-soft press" data-act="pk-today">${o.mode === 'month' ? 'This month' : 'Today'}</button></div>`;
+      h += `</div>`;
+      if (pm && S.payMode()) h += `<p class="muted sm pk-hint">Pay months, named after the month they end in.</p>`;
+      return h + `<div class="btn-row"><button class="btn press" data-act="sheet-close">Cancel</button><button class="btn btn-soft press" data-act="pk-today">${o.mode === 'month' ? 'This month' : 'Today'}</button></div>`;
     };
     const daysHtml = () => {
       const ws = S.settings().weekStart;
@@ -776,7 +782,7 @@
         UI.rerenderSheet(entry);
       },
       day: (iso) => pick(iso),
-      today: () => pick(o.mode === 'month' ? U.monthStart(today) : today)
+      today: () => pick(pm ? S.mStart(today) : today)
     };
     entry = UI.openSheet({ label: o.title, cls: 'picker', render: render, onClose: () => (M.pk = null) });
   };
@@ -834,4 +840,151 @@
       UI.error(e);
     }
   };
+
+  /* ================= HOLD A TRANSACTION FOR ACTIONS ================= */
+  /* Press and hold a row for about half a second: it sinks slightly while you hold, buzzes once,
+     and a small menu opens. Any movement (scrolling, swiping months) cancels it, and the tap that
+     ends a hold never opens the edit form, so nothing fires by accident. */
+  M.txActions = (t) => {
+    const c = S.cat(t.categoryId);
+    let entry = null;
+    const opt = (act, icon, title, sub, cls) => `<button type="button" class="txa-opt press${cls ? ' ' + cls : ''}" data-act="${act}"><span class="txa-ic">${ic(icon, 20, 1.9)}</span><span class="txa-txt"><b>${title}</b><span>${sub}</span></span></button>`;
+    const render = () => {
+      const cur = S.tx.find((x) => x.id === t.id) || t;
+      let h = `<div class="form txa"><div class="txa-head">${UI.tile(c)}<span class="tx-main"><span class="tx-title">${esc(cur.name || c.name)}</span><span class="tx-sub">${esc(U.fmtDay(cur.date))}${cur.name ? ' · ' + esc(c.name) : ''}</span></span><span class="${UI.amountClass(cur)}">${U.fmtSigned(cur)}</span></div><div class="txa-list">`;
+      h += opt('txa-dup', 'copy', 'Duplicate', 'Opens a copy dated today, ready to save');
+      h += opt('txa-edit', 'edit', 'Edit', 'Change the amount, category, date or note');
+      h += cur.excluded ? opt('txa-excl', 'eye', 'Include in reports', 'Count it in charts and totals again') : opt('txa-excl', 'eyeOff', 'Leave out of reports', 'Stays in your balance, but not in charts or totals');
+      h += opt('txa-del', 'trash', 'Delete', 'You can undo straight after', 'danger');
+      return h + `</div></div>`;
+    };
+    const run = async (fn) => {
+      try {
+        await fn(S.tx.find((x) => x.id === t.id) || t);
+      } catch (e) {
+        UI.error(e);
+      }
+    };
+    M.txa = {
+      dup: () =>
+        run(async (cur) => {
+          await UI.closeSheet();
+          M.txForm(null, { copy: cur });
+        }),
+      edit: () =>
+        run(async (cur) => {
+          await UI.closeSheet();
+          M.txForm(cur);
+        }),
+      excl: () =>
+        run(async (cur) => {
+          const on = !cur.excluded;
+          await S.setExcluded(cur.id, on);
+          await UI.closeSheet();
+          UI.toast(on ? 'Left out of reports' : 'Back in reports', {
+            action: 'Undo',
+            onAction: async () => {
+              await S.setExcluded(cur.id, !on);
+              UI.toast(on ? 'Back in reports' : 'Left out of reports');
+            }
+          });
+        }),
+      del: () =>
+        run(async (cur) => {
+          const gone = await S.deleteTx(cur.id);
+          await UI.closeSheet();
+          if (!gone) return;
+          UI.toast('Deleted ' + (gone.name || S.cat(gone.categoryId).name), {
+            action: 'Undo',
+            onAction: async () => {
+              await S.restoreTx(gone);
+              UI.toast('Entry restored');
+            }
+          });
+        })
+    };
+    entry = UI.openSheet({ label: 'Actions for ' + (t.name || c.name), cls: 'txa-sheet', render: render, onClose: () => (M.txa = null) });
+    return entry;
+  };
+  A['txa-dup'] = () => M.txa && M.txa.dup();
+  A['txa-edit'] = () => M.txa && M.txa.edit();
+  A['txa-excl'] = () => M.txa && M.txa.excl();
+  A['txa-del'] = () => M.txa && M.txa.del();
+
+  (function () {
+    const HOLD = 480;
+    const SLOP = 8;
+    let h = null;
+    let firedId = null;
+    let swallowUntil = 0;
+    const clear = () => {
+      if (!h) return;
+      clearTimeout(h.timer);
+      clearTimeout(h.sink);
+      h.row.classList.remove('holding');
+      h = null;
+    };
+    document.addEventListener(
+      'pointerdown',
+      (e) => {
+        clear();
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (UI.sheets.length) return;
+        const row = e.target.closest && e.target.closest('.tx-row[data-act="edit-tx"]');
+        if (!row || !row.closest('#view')) return;
+        const id = row.getAttribute('data-id');
+        const pid = e.pointerId;
+        firedId = null;
+        h = { id: pid, x: e.clientX, y: e.clientY, row: row };
+        /* show the press-and-hold only once it's clearly not a tap */
+        h.sink = setTimeout(() => h && h.row.classList.add('holding'), 140);
+        h.timer = setTimeout(() => {
+          const t = S.tx.find((x) => x.id === id);
+          const r = h && h.row;
+          clear();
+          if (!t || !r || !document.body.contains(r)) return;
+          firedId = pid;
+          if (UI.cancelSwipe) UI.cancelSwipe();
+          U.vibrate(14);
+          r.classList.add('held');
+          setTimeout(() => r.classList.remove('held'), 420);
+          M.txActions(t);
+        }, HOLD);
+      },
+      { passive: true }
+    );
+    document.addEventListener(
+      'pointermove',
+      (e) => {
+        if (h && e.pointerId === h.id && (Math.abs(e.clientX - h.x) > SLOP || Math.abs(e.clientY - h.y) > SLOP)) clear();
+      },
+      { passive: true }
+    );
+    ['pointerup', 'pointercancel'].forEach((n) =>
+      document.addEventListener(n, (e) => {
+        if (h && e.pointerId === h.id) clear();
+        /* the finger lifting after a hold: swallow the click it makes, wherever it lands (the menu may now be under it) */
+        if (firedId !== null && e.pointerId === firedId) {
+          firedId = null;
+          swallowUntil = Date.now() + 450;
+        }
+      }, true)
+    );
+    window.addEventListener('scroll', clear, { passive: true, capture: true });
+    /* the finger lifting after a hold must not also open the edit form */
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (firedId === null && Date.now() > swallowUntil) return;
+        swallowUntil = 0;
+        e.stopPropagation();
+        e.preventDefault();
+      },
+      true
+    );
+    /* no browser long-press menu or text selection on rows */
+    document.addEventListener('contextmenu', (e) => {
+      if (e.target.closest && e.target.closest('.tx-row')) e.preventDefault();
+    });
+  })();
 })();

@@ -575,3 +575,26 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
 @media (min-width: 600px) {
   .scroll-x { margin: 0; padding: 2px 0; }
 }
+
+/* pay months: dates under the range title */
+.range-stack { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.range-stack small { font-size: 11.5px; font-weight: 650; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card > .set-row + .stepper-row { margin-top: 12px; }
+
+/* hold a transaction for actions */
+.tx-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.tx-row.holding { transform: scale(.975); background: var(--accent-soft); box-shadow: 0 0 0 8px var(--accent-soft); border-radius: 12px; border-top-color: transparent; transition: transform .34s var(--ease-soft), background-color .34s, box-shadow .34s, border-color .2s; }
+.tx-row.held { animation: held .42s var(--ease); }
+@keyframes held { 0% { transform: scale(.975); } 45% { transform: scale(1.012); } 100% { transform: none; } }
+.txa-head { display: flex; align-items: center; gap: 12px; padding: 4px 2px 14px; border-bottom: 1px solid var(--divider); }
+.txa-head .tx-main { flex: 1; min-width: 0; }
+.txa-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.txa-opt { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px; padding: 8px 10px; border: 0; border-radius: 14px; background: none; color: var(--ink); font: inherit; text-align: left; }
+.txa-opt:hover { background: var(--divider); }
+.txa-ic { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); }
+.txa-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.txa-txt b { font-size: 15px; font-weight: 750; }
+.txa-txt span { font-size: 13px; color: var(--muted); }
+.txa-opt.danger { color: var(--bad); }
+.txa-opt.danger .txa-ic { background: var(--bad-soft); color: var(--bad); }
+@media (prefers-reduced-motion: reduce) { .tx-row.held { animation: none; } .tx-row.holding { transform: none; } }

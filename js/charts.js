@@ -51,13 +51,13 @@
       svg += `<circle cx="${tx}" cy="${y(vals[vals.length - 1] || 0)}" r="5" class="dot"></circle>`;
     }
     const startLbl = U.fmtShortDate(fc.start);
-    const endLbl = U.fmtShortDate(U.monthEnd(fc.start));
+    const endLbl = U.fmtShortDate(MT.store.mEnd(fc.start));
     svg += `<text x="0" y="${H - 4}" class="axis">${startLbl}</text>`;
     if (fc.isCurrent && fc.dayIdx > 4 && fc.dayIdx < days - 3) svg += `<text x="${x(fc.dayIdx - 1)}" y="${H - 4}" text-anchor="middle" class="axis strong">Today</text>`;
     svg += `<text x="${W}" y="${H - 4}" text-anchor="end" class="axis">${endLbl}</text>`;
     svg += `<line class="cross" x1="0" x2="0" y1="${top}" y2="${bottom}" visibility="hidden"></line><circle class="cross-dot" r="4.5" cx="0" cy="0" visibility="hidden"></circle><circle class="cross-dot2" r="3.5" cx="0" cy="0" visibility="hidden"></circle>`;
     C.reg[id] = { kind: 'line', fc: fc, max: max, W: W, top: top, bottom: bottom };
-    const label = `Spending so far in ${U.fmtMonth(fc.start)}: ${U.fmt(fc.spent)}` + (fc.avgToDate != null ? `, against a usual ${U.fmt(fc.avgToDate)} by this point.` : '.');
+    const label = `Spending so far in ${MT.store.mLabel(fc.start)}: ${U.fmt(fc.spent)}` + (fc.avgToDate != null ? `, against a usual ${U.fmt(fc.avgToDate)} by this point.` : '.');
     return `<div class="chart" data-chart-id="${id}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${U.esc(label)}" class="chart-svg line-chart">${svg}<rect x="0" y="0" width="${W}" height="${H}" fill="transparent" class="hit"></rect></svg><div class="chart-tip" hidden></div></div>`;
   };
 
@@ -133,7 +133,7 @@
           const px = Math.max(0, Math.min(r.width, ev.clientX - r.left));
           const di = Math.round((px / r.width) * (fc.days - 1));
           const X = (di / (fc.days - 1)) * d.W;
-          const date = fc.start.slice(0, 8) + String(di + 1).padStart(2, '0');
+          const date = U.addDays(fc.start, di);
           const past = !fc.isCurrent || di < fc.dayIdx;
           let val = null;
           let lines = '';
