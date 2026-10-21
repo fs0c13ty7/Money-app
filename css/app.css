@@ -125,7 +125,7 @@ mark { background: var(--mark); color: inherit; border-radius: 4px; padding: 0 1
 [hidden] { display: none !important; }
 
 #app { overflow-x: clip; max-width: 560px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; }
-#view { overflow-x: clip; padding: 0 max(20px, env(safe-area-inset-left, 0px)) 40px max(20px, env(safe-area-inset-right, 0px)); outline: none; }
+#view { overflow-x: clip; min-height: 100vh; min-height: 100dvh; padding: 0 max(20px, env(safe-area-inset-left, 0px)) 40px max(20px, env(safe-area-inset-right, 0px)); outline: none; }
 body.has-tabs #view { padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
 .stack { display: flex; flex-direction: column; gap: 14px; }
 
@@ -300,7 +300,8 @@ label.tx-row { cursor: pointer; }
 @keyframes inR { from { opacity: 0; transform: translateX(40px); } }
 @keyframes inL { from { opacity: 0; transform: translateX(-40px); } }
 
-#view[data-route="activity"] { touch-action: pan-y; }
+/* the view fills the screen, so a swipe works even on the empty space below a short list */
+#view[data-route="activity"], #view[data-route="insights"] { touch-action: pan-y; }
 .swipe-area { display: flex; flex-direction: column; gap: 14px; }
 .swipe-area.dragging { transition: none !important; will-change: transform, opacity; }
 .swipe-area.in-r { animation: inR .3s var(--ease) both; }
@@ -393,7 +394,8 @@ label.tx-row { cursor: pointer; }
 .search-field input { flex: 1; min-width: 0; height: 48px; border: 0; background: none; color: var(--ink); font-size: 15.5px; font-weight: 600; outline: none; }
 .search-field input::-webkit-search-cancel-button { display: none; }
 .search-field .clear { background: var(--divider); color: var(--muted); }
-.res-head { display: flex; justify-content: space-between; margin: 4px 4px -4px; font-size: 13px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+#search-results { display: flex; flex-direction: column; gap: 14px; }
+.res-head { display: flex; justify-content: space-between; gap: 12px; margin: 2px 4px -4px; line-height: 1.3; font-size: 13px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* ---------- empty states ---------- */
 .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 36px 20px; border-radius: 22px; border: 1.5px dashed var(--line); color: var(--faint); }

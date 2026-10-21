@@ -230,8 +230,11 @@
     return true;
   };
   A['act-step'] = (el) => UI.actStep(Number(el.getAttribute('data-dir')));
+  /* screens you can swipe between periods on: Activity here, Insights further down */
+  UI.swipeNav = { activity: { canNext: () => UI.actCanNext(), step: (dir) => UI.actStep(dir) } };
 
-  /* Swipe anywhere on Activity: the page follows your finger, then snaps to the previous or next period */
+  /* Swipe anywhere on Activity or Insights: the page follows your finger, then snaps to the previous or next period.
+     Insights' spending line is left alone, because sliding a finger along it reads the values. */
   (function () {
     let st = null;
     let swallowClick = false;
@@ -247,11 +250,12 @@
     document.addEventListener(
       'pointerdown',
       (e) => {
-        if (UI.route.name !== 'activity' || UI.sheets.length || (e.pointerType === 'mouse' && e.button !== 0)) return;
-        if (e.target.closest('.scroll-x, input, .tabbar, .sheet-wrap, #toast-root')) return;
+        const nav = UI.swipeNav[UI.route.name];
+        if (!nav || UI.sheets.length || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        if (e.target.closest('.scroll-x, input, .tabbar, .sheet-wrap, #toast-root, .line-chart')) return;
         if (e.clientX < 18 || e.clientX > window.innerWidth - 18) return; /* leave Android's back gesture alone */
         const el = document.querySelector('#view .swipe-area');
-        if (el) st = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, dx: 0, lock: null, el: el, last: [e.clientX, e.timeStamp] };
+        if (el) st = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, dx: 0, lock: null, el: el, nav: nav, last: [e.clientX, e.timeStamp] };
       },
       { passive: true }
     );
@@ -271,7 +275,7 @@
         }
         if (st.lock !== 'x') return;
         const w = width();
-        const blocked = dx < 0 && !UI.actCanNext();
+        const blocked = dx < 0 && !st.nav.canNext();
         const d = blocked ? dx * 0.22 : dx;
         st.dx = dx;
         st.v = (e.clientX - st.last[0]) / Math.max(1, e.timeStamp - st.last[1]);
@@ -290,21 +294,21 @@
       const w = width();
       const dir = s.dx < 0 ? 1 : -1;
       const fast = Math.abs(s.v || 0) > 0.45 && Math.sign(s.v) === Math.sign(s.dx);
-      const go = e.type !== 'pointercancel' && (Math.abs(s.dx) > w * 0.22 || fast) && (dir < 0 || UI.actCanNext());
+      const go = e.type !== 'pointercancel' && (Math.abs(s.dx) > w * 0.22 || fast) && (dir < 0 || s.nav.canNext());
       s.el.classList.remove('dragging');
       if (!go || U.reducedMotion()) {
         s.el.style.transition = 'transform .32s var(--ease), opacity .32s var(--ease)';
         s.el.style.transform = '';
         s.el.style.opacity = '';
         setTimeout(() => (s.el.style.transition = ''), 340);
-        if (go) UI.actStep(dir);
+        if (go) s.nav.step(dir);
         return;
       }
       s.el.style.transition = 'transform .16s cubic-bezier(.4,0,1,1), opacity .16s';
       s.el.style.transform = 'translateX(' + (s.dx < 0 ? -w : w) + 'px)';
       s.el.style.opacity = '0';
       setTimeout(() => {
-        UI.actStep(dir);
+        s.nav.step(dir);
         U.vibrate(5);
       }, 150);
     };
@@ -445,11 +449,12 @@
       const end = isCurrent ? today : S.mEnd(m);
       const fc = X.forecast(m);
       const tot = S.totals(m, end);
-      let h = `<header class="appbar topbar"><h1 class="h1">Insights</h1></header><div class="stack">`;
+      let h = `<header class="appbar topbar"><h1 class="h1">Insights</h1></header><div class="stack"><div class="swipe-area${UI.insEnter ? ' ' + UI.insEnter : ''}">`;
+      UI.insEnter = null;
       h += `<div class="range-nav"><button class="icon-btn press" data-act="ins-step" data-dir="-1" aria-label="Previous month">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-ins-month" aria-label="Choose a month: ${S.mLabel(m)}">${UI.rangeText(S.mLabel(m), S.mSpan(m))}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="ins-step" data-dir="1" aria-label="Next month"${isCurrent ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div>`;
       if (!S.tx.length) {
         h += UI.empty('insights', 'Charts appear as you log', 'Once you’ve added a few transactions, this is where you’ll see where your money goes.', `<button class="btn btn-primary press" data-act="quick-add">${ic('plus', 18, 2.2)} Add a transaction</button>`);
-        return h + '</div>';
+        return h + '</div></div>';
       }
       /* headline */
       h += `<section class="card">`;
@@ -500,7 +505,7 @@
         months.push({ label: S.mShortName(ms), full: S.mLabel(ms) + (S.payMode() ? ' (' + S.mSpan(ms) + ')' : ''), in: t.in, out: t.out });
       }
       h += `<section class="card"><div class="card-head"><h2 class="card-title">Last 6 months</h2></div><div class="legend top"><span><i class="sw sw-out"></i>Spent</span><span><i class="sw sw-in"></i>Income</span></div>${MT.charts.monthBars(months)}<p class="muted sm">Tap a month for the numbers.</p></section>`;
-      h += `</div>`;
+      h += `</div></div>`;
       return h;
     }
   };
@@ -533,14 +538,18 @@
       }
     });
   };
-  A['ins-step'] = (el) => {
-    const dir = Number(el.getAttribute('data-dir'));
+  UI.insCanNext = () => S.mStart(UI.insMonth) < S.mStart(U.today());
+  UI.insStep = (dir) => {
+    if (dir > 0 && !UI.insCanNext()) return false;
     const next = S.mAdd(UI.insMonth, dir);
-    if (next > U.today()) return;
+    if (next > U.today()) return false;
     UI.insMonth = next;
-    UI.entering = true;
+    UI.insEnter = U.reducedMotion() ? null : dir > 0 ? 'in-r' : 'in-l';
     UI.refresh();
+    return true;
   };
+  UI.swipeNav.insights = { canNext: () => UI.insCanNext(), step: (dir) => UI.insStep(dir) };
+  A['ins-step'] = (el) => UI.insStep(Number(el.getAttribute('data-dir')));
 
   /* ================= MORE / SETTINGS ================= */
   V.more = {
