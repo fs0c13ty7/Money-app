@@ -269,6 +269,8 @@
     document.addEventListener(
       'pointerdown',
       (e) => {
+        /* a new touch means the last swipe is over: never let it eat this tap */
+        swallowClick = false;
         const nav = UI.swipeNav[UI.route.name];
         if (!nav || UI.sheets.length || (e.pointerType === 'mouse' && e.button !== 0)) return;
         if (e.target.closest('.scroll-x, input, .tabbar, .sheet-wrap, #toast-root, .line-chart')) return;
