@@ -462,6 +462,18 @@ label.tx-row { cursor: pointer; }
 .qa-head { display: flex; align-items: center; justify-content: space-between; margin: 0 -10px; }
 .qa-title { margin: 0; font-size: 16px; font-weight: 800; }
 
+/* import choice */
+.choice { display: flex; flex-direction: column; gap: 10px; }
+.choice-opt { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px; border-radius: 18px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); text-align: left; font: inherit; }
+.choice-opt.on { border-color: var(--accent-ink); background: var(--accent-soft); }
+.choice-text { display: flex; flex-direction: column; gap: 3px; }
+.choice-text b { font-size: 15px; }
+.choice-text span { font-size: 13px; line-height: 1.45; font-weight: 600; color: var(--muted); }
+.radio { width: 22px; height: 22px; margin-top: 1px; border-radius: 50%; border: 2px solid var(--faint); flex: none; position: relative; transition: border-color .2s; }
+.choice-opt.on .radio { border-color: var(--accent-ink); }
+.choice-opt.on .radio::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--accent-ink); }
+label.btn { cursor: pointer; }
+
 /* quick add */
 .qa-sheet .sheet-body { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .qa { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -1064,6 +1076,8 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
       date: t.date,
       recurringId: t.recurringId || (prev && prev.recurringId) || null,
       example: prev ? !!prev.example : !!t.example,
+      excluded: prev ? !!prev.excluded : !!t.excluded,
+      source: (prev && prev.source) || t.source || null,
       createdAt: (prev && prev.createdAt) || t.createdAt || Date.now(),
       updatedAt: Date.now()
     };
@@ -1078,6 +1092,14 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
     await D.write(ops);
     txs.forEach((t) => S.tx.push(t));
     recs.forEach((r) => S.rec.push(r));
+    S.sortTx();
+    S.emit();
+  };
+  S.addBatch = async (cats, txs) => {
+    const ops = cats.map((c) => ({ store: 'categories', put: c })).concat(txs.map((t) => ({ store: 'tx', put: t })));
+    await D.write(ops);
+    cats.forEach((c) => S.cats.push(c));
+    txs.forEach((t) => S.tx.push(t));
     S.sortTx();
     S.emit();
   };
@@ -1117,7 +1139,7 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
 
   S.signed = (t) => (t.type === 'income' ? t.amount : -t.amount);
   S.balance = () => S.tx.reduce((a, t) => a + S.signed(t), 0);
-  S.isStat = (t) => t.categoryId !== 'adjust';
+  S.isStat = (t) => t.categoryId !== 'adjust' && !t.excluded;
   S.range = (from, to) => S.tx.filter((t) => t.date >= from && t.date <= to);
   S.totals = (from, to) => {
     let inn = 0;
@@ -2043,6 +2065,7 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
     if (t.name) sub.push(c.name);
     if (o.showDate) sub.push(U.fmtDay(t.date));
     if (t.recurringId) sub.push('Recurring');
+    if (t.excluded) sub.push('Not in reports');
     return `<button class="tx-row press" data-act="edit-tx" data-id="${U.esc(t.id)}">${UI.tile(c)}<span class="tx-main"><span class="tx-title">${o.titleHtml || U.esc(title)}</span>${sub.length ? `<span class="tx-sub">${U.esc(sub.join(' · '))}</span>` : ''}${o.noteHtml || ''}</span><span class="${UI.amountClass(t)}">${U.fmtSigned(t)}</span></button>`;
   };
 
@@ -2211,7 +2234,7 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
       }
       /* balance */
       const hidden = UI.hideBalance;
-      h += `<section class="hero"><div class="hero-top"><span class="hero-label">Total balance</span><button class="hero-eye press" data-act="toggle-balance" aria-pressed="${hidden}" aria-label="${hidden ? 'Show balance' : 'Hide balance'}">${ic(hidden ? 'eyeOff' : 'eye', 20, 1.9)}</button></div><div class="hero-amt${hidden ? ' masked' : ''}" aria-live="polite">${hidden ? '£ ••••••' : U.fmt(S.balance())}</div><div class="hero-bottom"><span class="hero-sub">${ic('wallet', 16, 1.9)} ${S.tx.length ? S.tx.length + ' transaction' + (S.tx.length === 1 ? '' : 's') : 'No transactions yet'}</span><button class="hero-btn press" data-act="go" data-to="adjust">${ic('sliders', 16, 1.9)} Adjust</button></div></section>`;
+      h += `<section class="hero"><div class="hero-top"><span class="hero-label">Total balance</span><button class="hero-eye press" data-act="toggle-balance" aria-pressed="${hidden}" aria-label="${hidden ? 'Show balance' : 'Hide balance'}">${ic(hidden ? 'eyeOff' : 'eye', 20, 1.9)}</button></div><div class="hero-amt${hidden ? ' masked' : ''}" aria-live="polite">${hidden ? '£ ••••••' : U.fmt(S.balance())}</div><div class="hero-bottom"><span class="hero-sub">${ic('wallet', 16, 1.9)} ${S.tx.length ? S.tx.length.toLocaleString('en-GB') + ' transaction' + (S.tx.length === 1 ? '' : 's') : 'No transactions yet'}</span><button class="hero-btn press" data-act="go" data-to="adjust">${ic('sliders', 16, 1.9)} Adjust</button></div></section>`;
       if (!S.tx.length) {
         h += `<section class="card welcome"><h2 class="card-title">Log your first expense</h2><p class="muted">Tap the + button any time. Type “coffee 3.40” in the description and the amount, date and category fill themselves in.</p><button class="btn btn-primary press" data-act="quick-add">${ic('plus', 18, 2.2)} Add a transaction</button></section>`;
       }
@@ -2598,6 +2621,7 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
       h += `<h2 class="section-label">Your data</h2><section class="card list-card">`;
       h += navRow('backup', 'shield', 'green', 'Backup & restore', last ? 'Last backup file ' + U.ago(last) : 'No backup file saved yet', !last || Date.now() - last > 3 * 86400000 ? 'warn' : 'good');
       h += navRow('adjust', 'sliders', 'slate', 'Adjust balance', 'Match the app to your bank');
+      h += `<label class="tx-row press" for="ml-file"><span class="tile c-orange">${ic('upload', 20)}</span><span class="tx-main"><span class="tx-title">Import from Money Lover</span><span class="tx-sub">Pick the CSV you exported. You’ll see a preview first</span></span><span class="chev">${ic('chevR', 18, 2)}</span><input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label>`;
       h += `</section>`;
       h += `<h2 class="section-label">Organise</h2><section class="card list-card">`;
       h += navRow('categories', 'more', 'blue', 'Categories', S.catsOf('expense').length + ' expense · ' + S.catsOf('income').length + ' income');
@@ -2609,6 +2633,7 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
       return h;
     },
     after(el) {
+      UI.bindImport(el);
       MT.db.persisted().then((p) => {
         const s = el.querySelector('#storage-status');
         if (!s) return;
@@ -2838,11 +2863,13 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
       h += `</section>`;
       h += `<h2 class="section-label">Restore or export</h2><section class="card list-card">`;
       h += `<label class="tx-row press" for="restore-file"><span class="tile c-blue">${ic('upload', 20)}</span><span class="tx-main"><span class="tx-title">Restore from a backup file</span><span class="tx-sub">You’ll see a preview before anything changes</span></span><span class="chev">${ic('chevR', 18, 2)}</span><input type="file" id="restore-file" accept="application/json,.json" class="sr"></label>`;
+      h += `<label class="tx-row press" for="ml-file"><span class="tile c-orange">${ic('upload', 20)}</span><span class="tx-main"><span class="tx-title">Import from Money Lover</span><span class="tx-sub">Pick the CSV you exported. You’ll see a preview first</span></span><span class="chev">${ic('chevR', 18, 2)}</span><input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label>`;
       h += `<button class="tx-row press" data-act="export-csv"><span class="tile c-teal">${ic('file', 20)}</span><span class="tx-main"><span class="tx-title">Export as spreadsheet (CSV)</span><span class="tx-sub">Opens in Google Sheets or Excel</span></span><span class="chev">${ic('chevR', 18, 2)}</span></button>`;
       h += `</section><h2 class="section-label">Snapshots on this phone</h2><section class="card list-card" id="snap-list"><p class="muted pad">Loading…</p></section>`;
       return h + `</div>`;
     },
     after(el) {
+      UI.bindImport(el);
       el.querySelector('#restore-file').addEventListener('change', async (e) => {
         const f = e.target.files && e.target.files[0];
         e.target.value = '';
@@ -2944,6 +2971,26 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
     } catch (e) {
       UI.error(e);
     }
+  };
+
+  /* Money Lover import: read the file on the phone, then show a preview */
+  UI.bindImport = (root) => {
+    const inp = root.querySelector('#ml-file');
+    if (!inp) return;
+    inp.addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      try {
+        if (/\.json$/i.test(f.name)) throw new Error('That’s a backup file. Use “Restore from a backup file” in Backup & restore instead.');
+        const res = MT.importer.fromMoneyLover(await f.text());
+        if (!res.ok) throw new Error(res.error);
+        if (UI.sheets.length) await UI.closeSheet();
+        MT.sheets.importPreview(res, f.name);
+      } catch (err) {
+        UI.error(err);
+      }
+    });
   };
 
   /* quick add & edit entry points */
@@ -3550,7 +3597,8 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
       label: 'Welcome',
       cls: 'welcome-sheet',
       render: () =>
-        `<div class="form"><span class="tile tile-xl c-blue">${ic('wallet', 30, 1.8)}</span><h2 class="sheet-title">Welcome to Money Tracker</h2><p class="sheet-text">Everything you log stays on this phone. To start, enter what’s in your account right now. You can bring in your Money Lover history later.</p><label class="field-block" for="ob-bal"><span class="lbl">Current balance</span><span class="money-input"><span>£</span><input id="ob-bal" inputmode="decimal" autocomplete="off" placeholder="0.00"></span></label><label class="field-inline" for="ob-neg"><input type="checkbox" id="ob-neg"> My account is overdrawn (minus)</label><button type="button" class="btn btn-primary btn-lg press" data-act="ob-start">Start tracking</button><button type="button" class="btn btn-text press" data-act="ob-skip">Skip for now</button><button type="button" class="btn btn-text press" data-act="load-examples">${ic('spark', 16, 2)} Explore with example data first</button></div>`,
+        `<div class="form"><span class="tile tile-xl c-blue">${ic('wallet', 30, 1.8)}</span><h2 class="sheet-title">Welcome to Money Tracker</h2><p class="sheet-text">Everything you log stays on this phone. To start, enter what’s in your account right now. You can bring in your Money Lover history later.</p><label class="field-block" for="ob-bal"><span class="lbl">Current balance</span><span class="money-input"><span>£</span><input id="ob-bal" inputmode="decimal" autocomplete="off" placeholder="0.00"></span></label><label class="field-inline" for="ob-neg"><input type="checkbox" id="ob-neg"> My account is overdrawn (minus)</label><button type="button" class="btn btn-primary btn-lg press" data-act="ob-start">Start tracking</button><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="ob-skip">Skip for now</button><button type="button" class="btn btn-text press" data-act="load-examples">${ic('spark', 16, 2)} Explore with example data first</button></div>`,
+      after: (el) => UI.bindImport(el),
       onClose: () => {
         if (!S.meta.onboarded) S.setMeta('onboarded', true).catch(() => {});
       }
@@ -3581,6 +3629,49 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
     UI.closeSheet();
   };
 
+  /* ================= MONEY LOVER IMPORT ================= */
+  M.importPreview = (res, fileName) => {
+    const s = res.summary;
+    const mine = S.tx.filter((t) => !t.example).length;
+    const addBal = S.balance() + s.balance;
+    let mode = 'replace';
+    const opt = (val, title, body) =>
+      `<button type="button" class="choice-opt press${mode === val ? ' on' : ''}" role="radio" aria-checked="${mode === val}" data-act="imp-mode" data-val="${val}"><span class="radio" aria-hidden="true"></span><span class="choice-text"><b>${title}</b><span>${body}</span></span></button>`;
+    const render = () =>
+      `<div class="form"><h2 class="sheet-title">Import from Money Lover</h2><p class="sheet-text">${esc(fileName)}</p>` +
+      `<div class="kv"><span>Transactions</span><b>${s.count.toLocaleString('en-GB')}</b><span>Covering</span><b>${U.fmtShortDate(s.from)} ${s.from.slice(0, 4)} – ${U.fmtShortDate(s.to)} ${s.to.slice(0, 4)}</b><span>Balance in the file</span><b>${U.fmt(s.balance)}</b>${s.excluded ? `<span>Kept out of reports</span><b>${s.excluded}</b>` : ''}${res.newCats.length ? `<span>New ${res.newCats.length === 1 ? 'category' : 'categories'}</span><b>${esc(res.newCats.map((c) => c.name).join(', '))}</b>` : ''}</div>` +
+      (s.skipped ? `<p class="note-box warn">${s.skipped} row${s.skipped === 1 ? '' : 's'} couldn’t be read and will be skipped.</p>` : '') +
+      (s.otherCurrency ? `<p class="note-box warn">${s.otherCurrency} entr${s.otherCurrency === 1 ? 'y is' : 'ies are'} not in GBP. They’ll be imported as pounds.</p>` : '') +
+      `<div class="choice" role="radiogroup" aria-label="How to import">` +
+      opt('replace', 'Replace what’s in the app', mine ? `Recommended. Your Money Lover history already includes your starting balance. Your ${mine} current entr${mine === 1 ? 'y is' : 'ies are'} saved as a snapshot first.` : 'Recommended. Your Money Lover history already includes your starting balance.') +
+      opt('add', 'Add to what’s here', `Keeps your current entries. Your balance would become ${U.fmt(addBal)}.`) +
+      `</div><button type="button" class="btn btn-primary btn-lg press" data-act="imp-go">Import ${s.count.toLocaleString('en-GB')} transactions</button></div>`;
+    let entry = null;
+    M.imp = {
+      mode: (v) => {
+        mode = v;
+        UI.rerenderSheet(entry);
+      },
+      go: async (btn) => {
+        btn.disabled = true;
+        btn.textContent = 'Importing…';
+        try {
+          const n = await MT.importer.apply(res, mode);
+          await UI.closeSheet();
+          if (UI.route.name !== 'home') UI.go('home', {}, 'replace');
+          UI.toast('Imported ' + n.toLocaleString('en-GB') + ' transactions · balance ' + U.fmt(S.balance()), { duration: 4500 });
+        } catch (e) {
+          btn.disabled = false;
+          btn.textContent = 'Try again';
+          UI.error(e);
+        }
+      }
+    };
+    entry = UI.openSheet({ label: 'Import from Money Lover', cls: 'tall', render: render, onClose: () => (M.imp = null) });
+  };
+  A['imp-mode'] = (el) => M.imp && M.imp.mode(el.getAttribute('data-val'));
+  A['imp-go'] = (el) => M.imp && M.imp.go(el);
+
   /* ================= RESTORE PREVIEW ================= */
   M.restorePreview = (v, source) => {
     const s = v.summary;
@@ -3608,6 +3699,138 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
   };
 })();
 
+/* Money Tracker — Money Lover CSV import. Runs entirely on the phone; the file never leaves it. */
+(function () {
+  'use strict';
+  const MT = window.MT;
+  const U = MT.util;
+  const S = MT.store;
+  const I = (MT.importer = {});
+
+  /* RFC 4180 CSV: quoted fields, escaped quotes, commas and newlines inside quotes, CRLF */
+  I.parseCSV = (text) => {
+    const rows = [];
+    let row = [];
+    let f = '';
+    let q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') {
+          if (text[i + 1] === '"') {
+            f += '"';
+            i++;
+          } else q = false;
+        } else f += c;
+      } else if (c === '"') q = true;
+      else if (c === ',') {
+        row.push(f);
+        f = '';
+      } else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(f);
+        rows.push(row);
+        row = [];
+        f = '';
+      } else f += c;
+    }
+    if (f !== '' || row.length) {
+      row.push(f);
+      rows.push(row);
+    }
+    return rows;
+  };
+
+  const ICON_GUESS = { loan: 'percent', debt: 'percent', mortgage: 'house', rent: 'house', education: 'book', kids: 'family', children: 'family', car: 'car', coffee: 'coffee', groceries: 'cart', phone: 'phoneCat', games: 'game' };
+  const guessIcon = (name) => {
+    const n = name.toLowerCase();
+    const k = Object.keys(ICON_GUESS).find((w) => n.indexOf(w) >= 0);
+    return k ? ICON_GUESS[k] : 'box';
+  };
+
+  I.fromMoneyLover = (text) => {
+    const rows = I.parseCSV(String(text || '').replace(/^﻿/, ''));
+    if (rows.length < 2) return { ok: false, error: 'That file has no transactions in it.' };
+    const head = rows[0].map((h) => h.trim().toLowerCase());
+    const col = (n) => head.indexOf(n);
+    const iId = col('id');
+    const iNote = col('note');
+    const iAmt = col('amount');
+    const iCat = col('category');
+    const iDate = col('date');
+    const iCur = col('currency');
+    const iEx = col('exclude report');
+    if (iAmt < 0 || iCat < 0 || iDate < 0) return { ok: false, error: 'This doesn’t look like a Money Lover export. It needs Amount, Category and Date columns.' };
+
+    const byName = {};
+    S.cats.forEach((c) => {
+      if (!c.system) byName[c.type + '|' + c.name.toLowerCase()] = c;
+    });
+    const newCats = {};
+    const tx = [];
+    let skipped = 0;
+    let excluded = 0;
+    let otherCurrency = 0;
+    const now = Date.now();
+    rows.slice(1).forEach((r, n) => {
+      if (r.length === 1 && !r[0].trim()) return;
+      const raw = String(r[iAmt] || '').trim();
+      const neg = raw.charAt(0) === '-';
+      const pence = U.parseMoney(raw.replace(/^[-+]/, ''));
+      const dm = String(r[iDate] || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!pence || !dm || Number(dm[2]) > 12 || Number(dm[1]) > 31) {
+        skipped++;
+        return;
+      }
+      const date = dm[3] + '-' + dm[2].padStart(2, '0') + '-' + dm[1].padStart(2, '0');
+      const type = neg ? 'expense' : 'income';
+      const cname = String(r[iCat] || '').trim() || (neg ? 'Other Expense' : 'Other Income');
+      const key = type + '|' + cname.toLowerCase();
+      let cat = byName[key] || newCats[key];
+      if (!cat) {
+        cat = newCats[key] = { id: 'ml_' + type + '_' + cname.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name: cname.slice(0, 40), type: type, icon: guessIcon(cname), color: 'slate', builtIn: false };
+      }
+      if (iCur >= 0 && r[iCur] && r[iCur].trim() && r[iCur].trim().toUpperCase() !== 'GBP') otherCurrency++;
+      const ex = iEx >= 0 && /^true$/i.test(String(r[iEx] || '').trim());
+      if (ex) excluded++;
+      const text = String(iNote >= 0 ? r[iNote] || '' : '').trim();
+      const id = 'ml_' + (iId >= 0 && String(r[iId] || '').trim() ? String(r[iId]).trim() : 'row' + n);
+      const t = { id: id, type: type, amount: pence, categoryId: cat.id, name: text.slice(0, 80), note: text.length > 80 ? text : '', date: date, recurringId: null, source: 'moneylover', createdAt: now - n, updatedAt: now };
+      if (ex) t.excluded = true;
+      tx.push(t);
+    });
+    if (!tx.length) return { ok: false, error: 'No transactions could be read from that file.' };
+    const dates = tx.map((t) => t.date).sort();
+    return {
+      ok: true,
+      tx: tx,
+      newCats: Object.values(newCats),
+      summary: {
+        count: tx.length,
+        from: dates[0],
+        to: dates[dates.length - 1],
+        balance: tx.reduce((a, t) => a + (t.type === 'income' ? t.amount : -t.amount), 0),
+        skipped: skipped,
+        excluded: excluded,
+        otherCurrency: otherCurrency
+      }
+    };
+  };
+
+  /* mode 'replace': the import becomes your full history (a snapshot of the current data is kept first)
+     mode 'add': imported entries are added; anything already imported before is skipped */
+  I.apply = async (res, mode) => {
+    if (mode === 'replace') {
+      await S.replaceAll({ tx: res.tx, categories: S.cats.concat(res.newCats.filter((c) => !S.cats.find((x) => x.id === c.id))), recurring: S.rec.slice(), settings: null });
+      return res.tx.length;
+    }
+    const have = new Set(S.tx.map((t) => t.id));
+    const fresh = res.tx.filter((t) => !have.has(t.id));
+    await S.addBatch(res.newCats.filter((c) => !S.cats.find((x) => x.id === c.id)), fresh);
+    return fresh.length;
+  };
+})();
+
 /* Money Tracker — start-up, example data, background upkeep */
 (function () {
   'use strict';
@@ -3616,7 +3839,7 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
   const S = MT.store;
   const UI = MT.ui;
   const A = UI.actions;
-  MT.VERSION = '1.0.1';
+  MT.VERSION = '1.1.0';
 
   /* ---------- Example data: flagged so it can be removed in one tap ---------- */
   MT.examples = () => {
