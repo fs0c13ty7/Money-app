@@ -1,0 +1,734 @@
+/* Money Tracker — bottom sheets: quick add / edit, recurring, category editor, first run, restore preview */
+(function () {
+  'use strict';
+  const MT = window.MT;
+  const U = MT.util;
+  const S = MT.store;
+  const X = MT.smart;
+  const UI = MT.ui;
+  const A = UI.actions;
+  const esc = U.esc;
+  const ic = U.icon;
+  const M = (MT.sheets = {});
+
+  const trimAmt = (p) => {
+    const pounds = Math.floor(p / 100);
+    const pp = p % 100;
+    return pp ? pounds + '.' + String(pp).padStart(2, '0') : String(pounds);
+  };
+
+  /* ================= QUICK ADD / EDIT ================= */
+  M.txForm = (existing, preset) => {
+    const isEdit = !!existing;
+    const st = {
+      id: existing ? existing.id : null,
+      type: existing ? existing.type : (preset && preset.type) || 'expense',
+      amt: existing ? trimAmt(existing.amount) : '0',
+      categoryId: existing ? existing.categoryId : null,
+      catTouched: isEdit,
+      name: existing ? existing.name : '',
+      note: existing ? existing.note : '',
+      date: existing ? existing.date : (preset && preset.date) || U.today(),
+      repeat: false,
+      saving: false,
+      recurringId: existing ? existing.recurringId : null,
+      parsed: null,
+      nameSugs: []
+    };
+    const defaultCat = (type) => (S.catsByUse(type)[0] || S.cat(S.fallbackFor(type))).id;
+    if (!st.categoryId) st.categoryId = defaultCat(st.type);
+    let sheet = null;
+
+    const catsHtml = () => {
+      let list = S.catsByUse(st.type);
+      if (!list.find((c) => c.id === st.categoryId)) list = [S.cat(st.categoryId)].concat(list);
+      return list
+        .map((c) => `<button type="button" class="chip cat-chip press${c.id === st.categoryId ? ' on' : ''}" data-act="qa-cat" data-id="${esc(c.id)}" aria-pressed="${c.id === st.categoryId}">${UI.tile(c, 'sm')}${esc(c.name)}</button>`)
+        .join('');
+    };
+    const datesHtml = () => {
+      const t = U.today();
+      const y = U.addDays(t, -1);
+      const custom = st.date !== t && st.date !== y;
+      return `<button type="button" class="chip${st.date === t ? ' on' : ''}" data-act="qa-date" data-val="${t}" aria-pressed="${st.date === t}">Today</button><button type="button" class="chip${st.date === y ? ' on' : ''}" data-act="qa-date" data-val="${y}" aria-pressed="${st.date === y}">Yesterday</button><label class="chip date-chip${custom ? ' on' : ''}" for="qa-date-in">${ic('calendar', 16, 2)}<span>${custom ? esc(U.fmtDay(st.date)) : 'Other date'}</span><input type="date" id="qa-date-in" value="${st.date}" max="${t}" aria-label="Pick a date"></label>`;
+    };
+    const keypadHtml = () =>
+      ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del']
+        .map((k) => `<button type="button" class="key${k === 'del' ? ' key-del' : ''}" data-act="qa-key" data-k="${k}" aria-label="${k === 'del' ? 'Delete (hold to clear)' : k === '.' ? 'Decimal point' : k}">${k === 'del' ? ic('backspace', 24, 1.9) : k}</button>`)
+        .join('');
+
+    const render = () => {
+      let h = `<div class="qa"><div class="qa-head"><button type="button" class="icon-btn" data-act="sheet-close" aria-label="Close">${ic('close', 22, 2)}</button><h2 class="qa-title">${isEdit ? 'Edit transaction' : 'New transaction'}</h2>${isEdit ? `<button type="button" class="icon-btn danger" data-act="qa-delete" aria-label="Delete this transaction">${ic('trash', 20, 1.9)}</button>` : '<span class="icon-spacer"></span>'}</div>`;
+      h += `<div class="qa-scroll">`;
+      h += UI.seg('qa-type', [{ id: 'expense', label: 'Expense' }, { id: 'income', label: 'Income' }], st.type, 'qa-type');
+      h += `<button type="button" class="qa-amount" data-act="qa-keypad" aria-label="Amount"><span class="qa-amt" aria-live="polite"></span></button>`;
+      h += `<label class="field qa-name" for="qa-name">${ic('edit', 18, 1.9)}<span class="sr">Description</span><input id="qa-name" autocomplete="off" enterkeyhint="done" placeholder="What for? Try “coffee 3.40 yesterday”" value="${esc(st.name)}"></label>`;
+      h += `<div class="qa-suggest" id="qa-suggest"></div>`;
+      h += `<div class="qa-label">Category</div><div class="chips scroll-x qa-cats" id="qa-cats" role="group" aria-label="Category">${catsHtml()}</div>`;
+      h += `<div class="chips qa-dates" id="qa-dates" role="group" aria-label="Date">${datesHtml()}</div>`;
+      h += `<label class="field" for="qa-note">${ic('note', 18, 1.9)}<span class="sr">Note</span><input id="qa-note" autocomplete="off" enterkeyhint="done" placeholder="Note (optional)" value="${esc(st.note)}"></label>`;
+      if (!isEdit) h += `<div class="set-row qa-repeat"><span id="qa-rep-lbl" class="set-text"><b>Repeat monthly</b><span>Logs it automatically each month</span></span>${UI.switch('qa-rep', st.repeat, 'qa-repeat', 'qa-rep-lbl')}</div>`;
+      else if (st.recurringId) h += `<p class="hint">${ic('repeat', 16, 1.9)} Part of a recurring payment. Changes here only affect this entry.</p>`;
+      h += `</div><div class="qa-bottom"><div class="keypad" id="qa-keypad">${keypadHtml()}</div><button type="button" class="btn btn-primary btn-lg qa-save press" data-act="qa-save"></button></div></div>`;
+      return h;
+    };
+
+    const $ = (s) => sheet.querySelector(s);
+    const updAmount = (bump) => {
+      const pence = U.keypadPence(st.amt);
+      const el = $('.qa-amt');
+      el.textContent = (st.type === 'income' && pence ? '+' : '') + U.keypadDisplay(st.amt);
+      el.classList.toggle('zero', !pence);
+      el.classList.toggle('in', st.type === 'income' && !!pence);
+      if (bump && !U.reducedMotion()) {
+        el.classList.remove('bump');
+        void el.offsetWidth;
+        el.classList.add('bump');
+      }
+      const btn = $('.qa-save');
+      btn.textContent = pence ? (isEdit ? 'Save changes · ' : 'Save ' + st.type + ' · ') + U.fmt(pence) : 'Enter an amount';
+      btn.classList.toggle('btn-disabled', !pence);
+    };
+    const updCats = (auto) => {
+      const box = $('#qa-cats');
+      box.innerHTML = catsHtml();
+      const on = box.querySelector('.on');
+      if (on) {
+        if (auto && !U.reducedMotion()) on.classList.add('pulse');
+        const bl = box.getBoundingClientRect();
+        const r = on.getBoundingClientRect();
+        if (r.left < bl.left || r.right > bl.right) box.scrollTo({ left: box.scrollLeft + r.left - bl.left - 20, behavior: U.reducedMotion() ? 'auto' : 'smooth' });
+      }
+    };
+    const updDates = () => {
+      $('#qa-dates').innerHTML = datesHtml();
+      bindDate();
+    };
+    const bindDate = () => {
+      const d = $('#qa-date-in');
+      d.addEventListener('click', () => {
+        try {
+          if (d.showPicker) d.showPicker();
+        } catch (e) {}
+      });
+      d.addEventListener('change', () => {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d.value)) {
+          st.date = d.value;
+          updDates();
+        }
+      });
+    };
+    const updSuggest = () => {
+      const box = $('#qa-suggest');
+      const p = X.parse(st.name, st.type);
+      st.parsed = p && (p.amount || (p.date && p.date !== st.date)) ? p : null;
+      st.nameSugs = X.nameSuggestions(st.name, st.type, 3);
+      let h = '';
+      if (st.parsed) {
+        const parts = [];
+        if (p.amount) parts.push((p.type === 'income' ? '+' : '') + U.fmt(p.amount));
+        if (p.date) parts.push(U.fmtDay(p.date));
+        if (p.name) parts.push(p.name);
+        if (p.categoryId) parts.push(S.cat(p.categoryId).name);
+        h += `<button type="button" class="fill-chip press" data-act="qa-apply">${ic('spark', 16, 2)}<span>Fill in: ${esc(parts.join(' · '))}</span></button>`;
+      }
+      if (st.nameSugs.length) {
+        h += `<div class="chips scroll-x">` + st.nameSugs.map((s, i) => `<button type="button" class="chip press" data-act="qa-name-pick" data-i="${i}">${UI.tile(S.cat(s.categoryId), 'sm')}${esc(s.name)} · ${U.fmt(s.amount)}</button>`).join('') + `</div>`;
+      }
+      box.innerHTML = h;
+    };
+    const autoCat = () => {
+      if (st.catTouched) return;
+      const p = X.parse(st.name, st.type);
+      const c = X.suggestCategory(p && p.name ? p.name : st.name, st.type);
+      if (c && c !== st.categoryId) {
+        st.categoryId = c;
+        updCats(true);
+      }
+    };
+    const setType = (t, keepCat) => {
+      if (t === st.type) return;
+      st.type = t;
+      const seg = sheet.querySelector('[data-seg="qa-type"]');
+      if (seg) UI.setSeg(seg, t === 'expense' ? 0 : 1);
+      if (!keepCat || S.cat(st.categoryId).type !== t) {
+        st.categoryId = X.suggestCategory(st.name, t) || defaultCat(t);
+        st.catTouched = false;
+      }
+      updCats();
+      updAmount();
+      updSuggest();
+    };
+    const applyParse = () => {
+      const p = st.parsed;
+      if (!p) return;
+      if (p.type && p.type !== st.type) setType(p.type, true);
+      if (p.amount) st.amt = trimAmt(p.amount);
+      if (p.date) st.date = p.date;
+      if (p.name) st.name = p.name;
+      if (p.categoryId && S.cat(p.categoryId).type === st.type) st.categoryId = p.categoryId;
+      $('#qa-name').value = st.name;
+      updAmount(true);
+      updCats(true);
+      updDates();
+      updSuggest();
+      U.vibrate(8);
+    };
+
+    const save = async () => {
+      if (st.saving) return;
+      const amount = U.keypadPence(st.amt);
+      if (!amount) {
+        const a = $('.qa-amount');
+        a.classList.remove('shake');
+        void a.offsetWidth;
+        a.classList.add('shake');
+        sheet.classList.remove('typing');
+        U.vibrate(20);
+        return;
+      }
+      st.saving = true;
+      $('.qa-save').disabled = true;
+      try {
+        let rule = null;
+        if (!isEdit && st.repeat) {
+          rule = await S.saveRecurring({
+            type: st.type,
+            amount: amount,
+            categoryId: st.categoryId,
+            name: st.name.trim() || S.cat(st.categoryId).name,
+            note: st.note,
+            freq: 'monthly',
+            anchor: Number(st.date.slice(8)),
+            nextDate: U.addMonths(st.date, 1, Number(st.date.slice(8)))
+          });
+        }
+        const before = existing ? Object.assign({}, existing) : null;
+        const t = await S.saveTx({ id: st.id, type: st.type, amount: amount, categoryId: st.categoryId, name: st.name, note: st.note, date: st.date, recurringId: rule ? rule.id : st.recurringId });
+        U.vibrate(12);
+        await UI.closeSheet();
+        const label = (t.type === 'income' ? '+' : '−') + U.fmt(t.amount) + ' · ' + S.cat(t.categoryId).name;
+        UI.toast(isEdit ? 'Changes saved' : 'Saved ' + label + (rule ? ' · repeats monthly' : ''), {
+          action: 'Undo',
+          onAction: async () => {
+            try {
+              if (isEdit) await S.restoreTx(before);
+              else {
+                await S.deleteTx(t.id);
+                if (rule) await S.deleteRecurring(rule.id);
+              }
+              UI.toast(isEdit ? 'Change undone' : 'Entry removed');
+            } catch (e) {
+              UI.error(e);
+            }
+          }
+        });
+      } catch (e) {
+        st.saving = false;
+        $('.qa-save').disabled = false;
+        UI.error(e);
+      }
+    };
+
+    M.cur = {
+      key: (k) => {
+        let a = st.amt;
+        if (k === 'del') a = a.length > 1 ? a.slice(0, -1) : '0';
+        else if (k === '.') {
+          if (a.indexOf('.') < 0) a += '.';
+        } else {
+          const dec = a.split('.')[1];
+          if (dec !== undefined && dec.length >= 2) return;
+          if (a.replace('.', '').length >= 8) return;
+          a = a === '0' ? k : a + k;
+        }
+        st.amt = a;
+        updAmount(true);
+      },
+      clear: () => {
+        st.amt = '0';
+        updAmount(true);
+      },
+      type: (t) => setType(t),
+      cat: (id) => {
+        st.categoryId = id;
+        st.catTouched = true;
+        sheet.querySelectorAll('.cat-chip').forEach((b) => {
+          const on = b.getAttribute('data-id') === id;
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+      },
+      date: (d) => {
+        st.date = d;
+        updDates();
+      },
+      repeat: (el) => {
+        st.repeat = !st.repeat;
+        el.setAttribute('aria-checked', String(st.repeat));
+      },
+      apply: applyParse,
+      namePick: (i) => {
+        const s = st.nameSugs[i];
+        if (!s) return;
+        st.name = s.name;
+        $('#qa-name').value = s.name;
+        st.categoryId = s.categoryId;
+        st.catTouched = true;
+        if (!U.keypadPence(st.amt)) st.amt = trimAmt(s.amount);
+        updAmount(true);
+        updCats(true);
+        updSuggest();
+      },
+      keypad: () => {
+        const f = document.activeElement;
+        if (f && f.blur && sheet.contains(f)) f.blur();
+        sheet.classList.remove('typing');
+      },
+      save: save,
+      del: async () => {
+        try {
+          const t = await S.deleteTx(st.id);
+          await UI.closeSheet();
+          UI.toast('Deleted ' + (t.name || S.cat(t.categoryId).name), {
+            action: 'Undo',
+            onAction: async () => {
+              await S.restoreTx(t);
+              UI.toast('Entry restored');
+            }
+          });
+        } catch (e) {
+          UI.error(e);
+        }
+      }
+    };
+
+    UI.openSheet({
+      label: isEdit ? 'Edit transaction' : 'New transaction',
+      full: true,
+      cls: 'qa-sheet',
+      render: render,
+      after: (el) => {
+        sheet = el;
+        updAmount();
+        updSuggest();
+        bindDate();
+        const nameIn = $('#qa-name');
+        const noteIn = $('#qa-note');
+        nameIn.addEventListener('input', () => {
+          st.name = nameIn.value;
+          autoCat();
+          updSuggest();
+        });
+        nameIn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (st.parsed) applyParse();
+            nameIn.blur();
+          }
+        });
+        noteIn.addEventListener('input', () => (st.note = noteIn.value));
+        noteIn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            noteIn.blur();
+          }
+        });
+        [nameIn, noteIn].forEach((i) => {
+          i.addEventListener('focus', () => sheet.classList.add('typing'));
+          i.addEventListener('blur', () =>
+            setTimeout(() => {
+              if (!sheet.contains(document.activeElement) || !/INPUT/.test(document.activeElement.tagName) || document.activeElement.type === 'date') sheet.classList.remove('typing');
+            }, 80)
+          );
+        });
+        /* hold delete to clear */
+        const del = sheet.querySelector('.key-del');
+        let holdTimer = null;
+        del.addEventListener('pointerdown', () => {
+          holdTimer = setTimeout(() => {
+            holdTimer = 'fired';
+            M.cur.clear();
+            U.vibrate(15);
+          }, 450);
+        });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) =>
+          del.addEventListener(ev, () => {
+            if (holdTimer && holdTimer !== 'fired') clearTimeout(holdTimer);
+            setTimeout(() => (holdTimer = null), 0);
+          })
+        );
+        del.addEventListener(
+          'click',
+          (e) => {
+            if (holdTimer === 'fired') {
+              e.stopPropagation();
+              e.preventDefault();
+            }
+          },
+          true
+        );
+        /* physical keyboard support */
+        sheet.addEventListener('keydown', (e) => {
+          if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
+          if (/^[0-9]$/.test(e.key)) M.cur.key(e.key);
+          else if (e.key === '.' || e.key === ',') M.cur.key('.');
+          else if (e.key === 'Backspace') M.cur.key('del');
+          else if (e.key === 'Enter') save();
+          else if (e.key === 'Escape') UI.closeSheet();
+          else return;
+          e.preventDefault();
+        });
+      },
+      onClose: () => {
+        M.cur = null;
+      }
+    });
+  };
+  A['qa-key'] = (el) => M.cur && M.cur.key(el.getAttribute('data-k'));
+  A['qa-type'] = (el) => M.cur && M.cur.type(el.getAttribute('data-val'));
+  A['qa-cat'] = (el) => M.cur && M.cur.cat(el.getAttribute('data-id'));
+  A['qa-date'] = (el) => M.cur && M.cur.date(el.getAttribute('data-val'));
+  A['qa-repeat'] = (el) => M.cur && M.cur.repeat(el);
+  A['qa-apply'] = () => M.cur && M.cur.apply();
+  A['qa-name-pick'] = (el) => M.cur && M.cur.namePick(Number(el.getAttribute('data-i')));
+  A['qa-keypad'] = () => M.cur && M.cur.keypad();
+  A['qa-save'] = () => M.cur && M.cur.save();
+  A['qa-delete'] = () => M.cur && M.cur.del();
+
+  /* ================= RECURRING ================= */
+  /* existing: a rule to edit. prefill: values for a new rule (e.g. a suggestion from your history) */
+  M.recurringForm = (existing, prefill) => {
+    const isEdit = !!existing;
+    const base = existing || prefill || {};
+    const r = {
+      id: existing ? existing.id : null,
+      type: base.type || 'expense',
+      amountStr: base.amount ? U.penceToInput(base.amount) : '',
+      name: base.name || '',
+      categoryId: base.categoryId || 'bills',
+      freq: base.freq || 'monthly',
+      interval: base.interval || 1,
+      nextDate: base.nextDate || U.addDays(U.today(), 1),
+      anchor: base.anchor || null,
+      hasEnd: !!base.endDate,
+      endDate: base.endDate || '',
+      paused: !!base.paused,
+      note: base.note || ''
+    };
+    let sheet = null;
+    const UNIT = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' };
+    const catsHtml = () => {
+      let list = S.catsByUse(r.type);
+      if (!list.find((c) => c.id === r.categoryId)) list = [S.cat(r.categoryId)].concat(list);
+      return list.map((c) => `<button type="button" class="chip cat-chip press${c.id === r.categoryId ? ' on' : ''}" data-act="rec-cat" data-id="${esc(c.id)}" aria-pressed="${c.id === r.categoryId}">${UI.tile(c, 'sm')}${esc(c.name)}</button>`).join('');
+    };
+    const summary = () => {
+      const p = U.parseMoney(r.amountStr);
+      if (!p || !/^\d{4}-\d{2}-\d{2}$/.test(r.nextDate)) return 'Fill in the amount and the next date.';
+      const anchor = r.anchor && r.nextDate === base.nextDate ? r.anchor : Number(r.nextDate.slice(8));
+      const rule = { freq: r.freq, interval: r.interval, anchor: anchor, nextDate: r.nextDate };
+      let t = (r.paused ? 'Paused. When resumed it logs ' : 'Logs ') + (r.type === 'income' ? '+' : '−') + U.fmt(p) + ' ' + UI.freqText(rule) + ', starting ' + U.fmtDay(r.nextDate);
+      if (r.hasEnd && /^\d{4}-\d{2}-\d{2}$/.test(r.endDate)) t += ', with the last one on or before ' + U.fmtDay(r.endDate);
+      t += '.';
+      if ((r.freq === 'monthly' || r.freq === 'yearly') && anchor > 28) t += ' In shorter months it uses the last day.';
+      return t;
+    };
+    const render = () => {
+      let h = `<div class="form"><div class="qa-head"><button type="button" class="icon-btn" data-act="sheet-close" aria-label="Close">${ic('close', 22, 2)}</button><h2 class="qa-title">${isEdit ? 'Edit recurring' : 'New recurring'}</h2>${isEdit ? `<button type="button" class="icon-btn danger" data-act="rec-delete" aria-label="Delete">${ic('trash', 20, 1.9)}</button>` : '<span class="icon-spacer"></span>'}</div>`;
+      h += UI.seg('rec-type', [{ id: 'expense', label: 'Expense' }, { id: 'income', label: 'Income' }], r.type, 'rec-type');
+      h += `<label class="field-block" for="rec-name"><span class="lbl">Name</span><input class="input" id="rec-name" autocomplete="off" placeholder="e.g. Netflix" value="${esc(r.name)}"></label>`;
+      h += `<label class="field-block" for="rec-amt"><span class="lbl">Amount</span><span class="money-input"><span>£</span><input id="rec-amt" inputmode="decimal" autocomplete="off" placeholder="0.00" value="${esc(r.amountStr)}"></span></label>`;
+      h += `<div class="field-block"><span class="lbl">Category</span><div class="chips scroll-x" id="rec-cats" role="group" aria-label="Category">${catsHtml()}</div></div>`;
+      h += `<div class="field-block"><span class="lbl">How often</span>${UI.seg('rec-freq', [{ id: 'daily', label: 'Daily' }, { id: 'weekly', label: 'Weekly' }, { id: 'monthly', label: 'Monthly' }, { id: 'yearly', label: 'Yearly' }], r.freq, 'rec-freq')}`;
+      h += `<div class="stepper-row"><span class="set-text"><b>Repeat every</b></span><div class="stepper" role="group" aria-label="Repeat every"><button type="button" class="step press" data-act="rec-int" data-d="-1" aria-label="Less often"${r.interval <= 1 ? ' disabled' : ''}>${ic('minus', 18, 2.4)}</button><output id="rec-int-val" aria-live="polite">${r.interval} ${UNIT[r.freq]}${r.interval === 1 ? '' : 's'}</output><button type="button" class="step press" data-act="rec-int" data-d="1" aria-label="Less frequently, more ${UNIT[r.freq]}s between"${r.interval >= 99 ? ' disabled' : ''}>${ic('plus', 18, 2.4)}</button></div></div></div>`;
+      h += `<label class="field-block" for="rec-date"><span class="lbl">${isEdit ? 'Next due' : 'Next payment'}</span><input class="input" type="date" id="rec-date" value="${r.nextDate}"></label>`;
+      h += `<div class="set-row"><span id="rec-e-lbl" class="set-text"><b>Has an end date</b><span>For loans or fixed-term plans</span></span>${UI.switch('rec-e', r.hasEnd, 'rec-end', 'rec-e-lbl')}</div>`;
+      h += `<label class="field-block" for="rec-enddate"${r.hasEnd ? '' : ' hidden'} id="rec-end-wrap"><span class="lbl">Last payment on or before</span><input class="input" type="date" id="rec-enddate" value="${r.endDate}" min="${r.nextDate}"></label>`;
+      h += `<label class="field" for="rec-note">${ic('note', 18, 1.9)}<span class="sr">Note</span><input id="rec-note" autocomplete="off" placeholder="Note (optional)" value="${esc(r.note)}"></label>`;
+      if (isEdit) h += `<div class="set-row"><span id="rec-p-lbl" class="set-text"><b>Paused</b><span>Nothing is logged while paused, for example months with no council tax</span></span>${UI.switch('rec-p', r.paused, 'rec-pause', 'rec-p-lbl')}</div>`;
+      h += `<p class="note-box" id="rec-sum" aria-live="polite">${esc(summary())}</p>`;
+      h += `<button type="button" class="btn btn-primary btn-lg press" data-act="rec-save">${isEdit ? 'Save changes' : 'Add recurring'}</button></div>`;
+      return h;
+    };
+    const upd = () => (sheet.querySelector('#rec-sum').textContent = summary());
+    const updInterval = () => {
+      sheet.querySelector('#rec-int-val').textContent = r.interval + ' ' + UNIT[r.freq] + (r.interval === 1 ? '' : 's');
+      const [minus, plus] = sheet.querySelectorAll('.step');
+      minus.disabled = r.interval <= 1;
+      plus.disabled = r.interval >= 99;
+      upd();
+    };
+    M.rec = {
+      type: (t) => {
+        r.type = t;
+        UI.setSeg(sheet.querySelector('[data-seg="rec-type"]'), t === 'expense' ? 0 : 1);
+        if (S.cat(r.categoryId).type !== t) r.categoryId = (S.catsByUse(t)[0] || {}).id;
+        sheet.querySelector('#rec-cats').innerHTML = catsHtml();
+        upd();
+      },
+      cat: (id) => {
+        r.categoryId = id;
+        sheet.querySelector('#rec-cats').innerHTML = catsHtml();
+      },
+      freq: (f, el) => {
+        r.freq = f;
+        UI.setSeg(el.closest('[data-seg]'), Number(el.getAttribute('data-seg-i')));
+        updInterval();
+      },
+      interval: (d) => {
+        r.interval = Math.max(1, Math.min(99, r.interval + d));
+        updInterval();
+      },
+      end: (el) => {
+        r.hasEnd = !r.hasEnd;
+        el.setAttribute('aria-checked', String(r.hasEnd));
+        sheet.querySelector('#rec-end-wrap').hidden = !r.hasEnd;
+        upd();
+      },
+      pause: (el) => {
+        r.paused = !r.paused;
+        el.setAttribute('aria-checked', String(r.paused));
+        upd();
+      },
+      save: async (btn) => {
+        btn.disabled = true;
+        try {
+          const amount = U.parseMoney(r.amountStr);
+          if (amount == null || !amount) throw new Error('Enter the amount, like 9.99.');
+          if (r.hasEnd && !/^\d{4}-\d{2}-\d{2}$/.test(r.endDate)) throw new Error('Pick the end date, or turn off “Has an end date”.');
+          const keepAnchor = (isEdit && r.nextDate === existing.nextDate) || (!isEdit && prefill && r.nextDate === prefill.nextDate);
+          await S.saveRecurring({ id: r.id, type: r.type, amount: amount, name: r.name, categoryId: r.categoryId, freq: r.freq, interval: r.interval, nextDate: r.nextDate, endDate: r.hasEnd ? r.endDate : null, paused: r.paused, note: r.note, anchor: keepAnchor ? r.anchor : null });
+          U.vibrate(10);
+          await UI.closeSheet();
+          UI.toast(isEdit ? 'Recurring updated' : 'Recurring added');
+        } catch (e) {
+          btn.disabled = false;
+          UI.error(e);
+        }
+      },
+      del: async () => {
+        const ok = await UI.confirm({ title: 'Delete ' + (r.name || 'this') + '?', body: 'Entries it has already logged stay in your history. Nothing new will be logged.', ok: 'Delete', danger: true });
+        if (!ok) return;
+        try {
+          const gone = await S.deleteRecurring(r.id);
+          await UI.closeSheet();
+          UI.toast('Deleted ' + gone.name, {
+            action: 'Undo',
+            onAction: async () => {
+              await S.restoreRecurring(gone);
+              UI.toast('Recurring restored');
+            }
+          });
+        } catch (e) {
+          UI.error(e);
+        }
+      }
+    };
+    UI.openSheet({
+      label: isEdit ? 'Edit recurring' : 'New recurring',
+      cls: 'tall',
+      render: render,
+      after: (el) => {
+        sheet = el;
+        const bind = (id, key) => {
+          const i = el.querySelector(id);
+          const f = () => {
+            r[key] = i.value;
+            if (key === 'nextDate') el.querySelector('#rec-enddate').min = i.value;
+            upd();
+          };
+          i.addEventListener('input', f);
+          i.addEventListener('change', f);
+        };
+        bind('#rec-name', 'name');
+        bind('#rec-amt', 'amountStr');
+        bind('#rec-date', 'nextDate');
+        bind('#rec-enddate', 'endDate');
+        bind('#rec-note', 'note');
+      },
+      onClose: () => (M.rec = null)
+    });
+  };
+  A['rec-type'] = (el) => M.rec && M.rec.type(el.getAttribute('data-val'));
+  A['rec-cat'] = (el) => M.rec && M.rec.cat(el.getAttribute('data-id'));
+  A['rec-freq'] = (el) => M.rec && M.rec.freq(el.getAttribute('data-val'), el);
+  A['rec-int'] = (el) => M.rec && M.rec.interval(Number(el.getAttribute('data-d')));
+  A['rec-end'] = (el) => M.rec && M.rec.end(el);
+  A['rec-pause'] = (el) => M.rec && M.rec.pause(el);
+  A['rec-save'] = (el) => M.rec && M.rec.save(el);
+  A['rec-delete'] = () => M.rec && M.rec.del();
+
+  /* ================= CATEGORY EDITOR ================= */
+  M.categoryForm = (existing, type) => {
+    const isEdit = !!existing;
+    const c = existing ? Object.assign({}, existing) : { name: '', type: type, icon: 'box', color: 'blue' };
+    let sheet = null;
+    const preview = () => `${UI.tile(c, 'lg')}`;
+    const render = () => {
+      let h = `<div class="form"><div class="qa-head"><button type="button" class="icon-btn" data-act="sheet-close" aria-label="Close">${ic('close', 22, 2)}</button><h2 class="qa-title">${isEdit ? 'Edit category' : 'New ' + c.type + ' category'}</h2><span class="icon-spacer"></span></div>`;
+      h += `<div class="cat-name-row"><span id="cf-prev">${preview()}</span><label class="field-block grow" for="cf-name"><span class="lbl">Name</span><input class="input" id="cf-name" autocomplete="off" placeholder="e.g. Coffee" value="${esc(c.name)}" ${isEdit ? '' : 'autofocus'}></label></div>`;
+      h += `<div class="field-block"><span class="lbl">Colour</span><div class="swatches" role="group" aria-label="Colour">${U.COLORS.map((k) => `<button type="button" class="swatch c-${k}${c.color === k ? ' on' : ''}" data-act="cf-color" data-val="${k}" aria-label="${U.COLOR_NAMES[k]}" aria-pressed="${c.color === k}"><span></span></button>`).join('')}</div></div>`;
+      h += `<div class="field-block"><span class="lbl">Icon</span><div class="icon-grid" role="group" aria-label="Icon">${U.PICKABLE_ICONS.map((k) => `<button type="button" class="icon-opt${c.icon === k ? ' on' : ''}" data-act="cf-icon" data-val="${k}" aria-label="${k}" aria-pressed="${c.icon === k}">${ic(k, 20)}</button>`).join('')}</div></div>`;
+      h += `<button type="button" class="btn btn-primary btn-lg press" data-act="cf-save">${isEdit ? 'Save changes' : 'Add category'}</button>`;
+      if (isEdit && !c.builtIn) h += `<button type="button" class="btn btn-ghost-danger press" data-act="cf-remove">Remove category</button>`;
+      return h + `</div>`;
+    };
+    const setOn = (sel, val) =>
+      sheet.querySelectorAll(sel).forEach((b) => {
+        const on = b.getAttribute('data-val') === val;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+    M.cf = {
+      color: (k) => {
+        c.color = k;
+        setOn('.swatch', k);
+        sheet.querySelector('#cf-prev').innerHTML = preview();
+      },
+      icon: (k) => {
+        c.icon = k;
+        setOn('.icon-opt', k);
+        sheet.querySelector('#cf-prev').innerHTML = preview();
+      },
+      save: async (btn) => {
+        btn.disabled = true;
+        try {
+          c.name = sheet.querySelector('#cf-name').value;
+          const out = await S.saveCategory(c);
+          await UI.closeSheet();
+          UI.toast((isEdit ? 'Saved ' : 'Added ') + out.name);
+        } catch (e) {
+          btn.disabled = false;
+          UI.error(e);
+        }
+      },
+      remove: async () => {
+        await UI.closeSheet();
+        const btn = document.createElement('button');
+        btn.setAttribute('data-id', c.id);
+        A['cat-remove'](btn);
+      }
+    };
+    UI.openSheet({
+      label: isEdit ? 'Edit category' : 'New category',
+      cls: 'tall',
+      render: render,
+      after: (el) => {
+        sheet = el;
+      },
+      onClose: () => (M.cf = null)
+    });
+  };
+  A['cf-color'] = (el) => M.cf && M.cf.color(el.getAttribute('data-val'));
+  A['cf-icon'] = (el) => M.cf && M.cf.icon(el.getAttribute('data-val'));
+  A['cf-save'] = (el) => M.cf && M.cf.save(el);
+  A['cf-remove'] = () => M.cf && M.cf.remove();
+
+  /* ================= FIRST RUN ================= */
+  M.onboarding = () => {
+    UI.openSheet({
+      label: 'Welcome',
+      cls: 'welcome-sheet',
+      render: () =>
+        `<div class="form"><span class="tile tile-xl c-blue">${ic('wallet', 30, 1.8)}</span><h2 class="sheet-title">Welcome to Money Tracker</h2><p class="sheet-text">Everything you log stays on this phone. To start, enter what’s in your account right now. You can bring in your Money Lover history later.</p><label class="field-block" for="ob-bal"><span class="lbl">Current balance</span><span class="money-input"><span>£</span><input id="ob-bal" inputmode="decimal" autocomplete="off" placeholder="0.00"></span></label><label class="field-inline" for="ob-neg"><input type="checkbox" id="ob-neg"> My account is overdrawn (minus)</label><button type="button" class="btn btn-primary btn-lg press" data-act="ob-start">Start tracking</button><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="ob-skip">Skip for now</button><button type="button" class="btn btn-text press" data-act="load-examples">${ic('spark', 16, 2)} Explore with example data first</button></div>`,
+      after: (el) => UI.bindImport(el),
+      onClose: () => {
+        if (!S.meta.onboarded) S.setMeta('onboarded', true).catch(() => {});
+      }
+    });
+  };
+  A['ob-start'] = async (el) => {
+    const inp = document.getElementById('ob-bal');
+    const p = U.parseMoney(inp.value || '0');
+    if (p == null) return UI.toast('Enter an amount like 1250.00', { kind: 'error' });
+    el.disabled = true;
+    try {
+      if (p > 0) {
+        const neg = document.getElementById('ob-neg').checked;
+        await S.saveTx({ type: neg ? 'expense' : 'income', amount: p, categoryId: 'adjust', name: 'Opening balance', note: '', date: U.today() });
+      }
+      await S.setMeta('onboarded', true);
+      MT.db.persist();
+      await UI.closeSheet();
+      UI.toast('All set. Tap + to log your first expense');
+    } catch (e) {
+      el.disabled = false;
+      UI.error(e);
+    }
+  };
+  A['ob-skip'] = async () => {
+    await S.setMeta('onboarded', true).catch(() => {});
+    MT.db.persist();
+    UI.closeSheet();
+  };
+
+  /* ================= MONEY LOVER IMPORT ================= */
+  M.importPreview = (res, fileName) => {
+    const s = res.summary;
+    const mine = S.tx.filter((t) => !t.example).length;
+    const addBal = S.balance() + s.balance;
+    let mode = 'replace';
+    const opt = (val, title, body) =>
+      `<button type="button" class="choice-opt press${mode === val ? ' on' : ''}" role="radio" aria-checked="${mode === val}" data-act="imp-mode" data-val="${val}"><span class="radio" aria-hidden="true"></span><span class="choice-text"><b>${title}</b><span>${body}</span></span></button>`;
+    const render = () =>
+      `<div class="form"><h2 class="sheet-title">Import from Money Lover</h2><p class="sheet-text">${esc(fileName)}</p>` +
+      `<div class="kv"><span>Transactions</span><b>${s.count.toLocaleString('en-GB')}</b><span>Covering</span><b>${U.fmtShortDate(s.from)} ${s.from.slice(0, 4)} – ${U.fmtShortDate(s.to)} ${s.to.slice(0, 4)}</b><span>Balance in the file</span><b>${U.fmt(s.balance)}</b>${s.excluded ? `<span>Kept out of reports</span><b>${s.excluded}</b>` : ''}${res.newCats.length ? `<span>New ${res.newCats.length === 1 ? 'category' : 'categories'}</span><b>${esc(res.newCats.map((c) => c.name).join(', '))}</b>` : ''}</div>` +
+      (s.skipped ? `<p class="note-box warn">${s.skipped} row${s.skipped === 1 ? '' : 's'} couldn’t be read and will be skipped.</p>` : '') +
+      (s.otherCurrency ? `<p class="note-box warn">${s.otherCurrency} entr${s.otherCurrency === 1 ? 'y is' : 'ies are'} not in GBP. They’ll be imported as pounds.</p>` : '') +
+      `<div class="choice" role="radiogroup" aria-label="How to import">` +
+      opt('replace', 'Replace what’s in the app', mine ? `Recommended. Your Money Lover history already includes your starting balance. Your ${mine} current entr${mine === 1 ? 'y is' : 'ies are'} saved as a snapshot first.` : 'Recommended. Your Money Lover history already includes your starting balance.') +
+      opt('add', 'Add to what’s here', `Keeps your current entries. Your balance would become ${U.fmt(addBal)}.`) +
+      `</div><button type="button" class="btn btn-primary btn-lg press" data-act="imp-go">Import ${s.count.toLocaleString('en-GB')} transactions</button></div>`;
+    let entry = null;
+    M.imp = {
+      mode: (v) => {
+        mode = v;
+        UI.rerenderSheet(entry);
+      },
+      go: async (btn) => {
+        btn.disabled = true;
+        btn.textContent = 'Importing…';
+        try {
+          const n = await MT.importer.apply(res, mode);
+          await UI.closeSheet();
+          if (UI.route.name !== 'home') UI.go('home', {}, 'replace');
+          UI.toast('Imported ' + n.toLocaleString('en-GB') + ' transactions · balance ' + U.fmt(S.balance()), { duration: 4500 });
+        } catch (e) {
+          btn.disabled = false;
+          btn.textContent = 'Try again';
+          UI.error(e);
+        }
+      }
+    };
+    entry = UI.openSheet({ label: 'Import from Money Lover', cls: 'tall', render: render, onClose: () => (M.imp = null) });
+  };
+  A['imp-mode'] = (el) => M.imp && M.imp.mode(el.getAttribute('data-val'));
+  A['imp-go'] = (el) => M.imp && M.imp.go(el);
+
+  /* ================= RESTORE PREVIEW ================= */
+  M.restorePreview = (v, source) => {
+    const s = v.summary;
+    UI.openSheet({
+      label: 'Restore preview',
+      render: () =>
+        `<div class="form"><h2 class="sheet-title">Restore this backup?</h2><p class="sheet-text">${esc(source)}</p><div class="kv"><span>Transactions</span><b>${s.tx}</b><span>Covering</span><b>${s.from ? U.fmtShortDate(s.from) + ' ' + s.from.slice(0, 4) + ' – ' + U.fmtShortDate(s.to) + ' ' + s.to.slice(0, 4) : '—'}</b><span>Balance</span><b>${U.fmt(s.balance)}</b><span>Categories</span><b>${s.cats}</b><span>Recurring</span><b>${s.rec}</b></div>${s.skipped ? `<p class="note-box warn">${s.skipped} damaged entr${s.skipped === 1 ? 'y' : 'ies'} will be skipped.</p>` : ''}<p class="note-box">This replaces what’s in the app now (${S.tx.length} transactions, balance ${U.fmt(S.balance())}). A snapshot of your current data is saved first, so you can switch back from Backup.</p><div class="btn-row"><button type="button" class="btn" data-act="sheet-close">Cancel</button><button type="button" class="btn btn-danger" data-act="restore-go">Replace data</button></div></div>`
+    });
+    UI._restore = v;
+  };
+  A['restore-go'] = async (el) => {
+    const v = UI._restore;
+    if (!v) return;
+    el.disabled = true;
+    try {
+      await S.replaceAll(v.data);
+      UI._restore = null;
+      UI.applyTheme(S.settings().theme);
+      await UI.closeSheet();
+      UI.toast('Restored ' + v.summary.tx + ' transactions');
+    } catch (e) {
+      el.disabled = false;
+      UI.error(e);
+    }
+  };
+})();

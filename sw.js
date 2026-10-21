@@ -1,7 +1,25 @@
 /* Money Tracker service worker: makes the app open instantly and work fully offline.
    It only caches the app's own files and fonts. Your money data lives in IndexedDB, never here. */
-const VERSION = 'mt-v1.1.0';
-const APP_FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'maskable-512.png'];
+const VERSION = 'mt-v1.3.0';
+const APP_FILES = [
+  './',
+  'index.html',
+  'manifest.webmanifest',
+  'css/app.css',
+  'js/util.js',
+  'js/db.js',
+  'js/store.js',
+  'js/smart.js',
+  'js/charts.js',
+  'js/ui.js',
+  'js/views.js',
+  'js/sheets.js',
+  'js/importer.js',
+  'js/main.js',
+  'icons/icon-192.png',
+  'icons/icon-512.png',
+  'icons/maskable-512.png'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(VERSION).then((c) => c.addAll(APP_FILES)).then(() => self.skipWaiting()));

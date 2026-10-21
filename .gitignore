@@ -1,0 +1,10 @@
+# Never upload your own data: backup files and spreadsheet exports stay off GitHub
+money-tracker-backup-*.json
+money-tracker-*.csv
+*.csv
+
+# System clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+*.zip
