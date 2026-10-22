@@ -229,7 +229,7 @@
     UI.refresh();
   };
   UI.actCanNext = () => rangeOf(UI.act.period, UI.act.anchor).to < U.today();
-  UI.actStep = (dir) => {
+  UI.actStep = (dir, from) => {
     const st = UI.act;
     if (dir > 0 && !UI.actCanNext()) return false;
     let a = st.anchor;
@@ -238,19 +238,65 @@
     else a = S.mAdd(a, dir);
     if (a > U.today()) a = U.today();
     st.anchor = a;
-    UI.actEnter = U.reducedMotion() ? null : dir > 0 ? 'in-r' : 'in-l';
-    UI.refresh();
+    UI.swapPeriod(dir, from);
     return true;
   };
   A['act-now'] = () => {
     UI.act.anchor = U.today();
-    UI.actEnter = U.reducedMotion() ? null : 'in-r';
     U.vibrate(5);
-    UI.refresh();
+    UI.swapPeriod(1);
   };
   A['act-step'] = (el) => UI.actStep(Number(el.getAttribute('data-dir')));
   /* screens you can swipe between periods on: Activity here, Insights further down */
-  UI.swipeNav = { activity: { canNext: () => UI.actCanNext(), step: (dir) => UI.actStep(dir) } };
+  UI.swipeNav = { activity: { canNext: () => UI.actCanNext(), step: (dir, from) => UI.actStep(dir, from) } };
+
+  /* Change period with a carousel-style hand-over: the old period keeps moving out while the new one
+     slides in from the other side, overlapping, so the screen never goes blank in between.
+     from: where the old content already is (mid-swipe), as { x: px, o: opacity }. */
+  UI.swapPeriod = (dir, from) => {
+    const old = document.querySelector('#view .swipe-area');
+    if (!old || U.reducedMotion() || !old.animate) return UI.refresh();
+    const r0 = old.getBoundingClientRect();
+    const ghost = old.cloneNode(true);
+    UI.refresh();
+    const neu = document.querySelector('#view .swipe-area');
+    if (!neu) return;
+    const host = neu.parentNode;
+    const hr = host.getBoundingClientRect();
+    host.classList.add('swapping');
+    ghost.className = 'swipe-ghost';
+    ghost.querySelectorAll('.draw').forEach((n) => n.classList.remove('draw'));
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.inert = true;
+    ghost.removeAttribute('style');
+    ghost.style.top = r0.top - hr.top + 'px';
+    ghost.style.left = r0.left - hr.left + 'px';
+    ghost.style.width = r0.width + 'px';
+    host.insertBefore(ghost, neu);
+    const w = r0.width;
+    const x0 = from ? from.x : 0;
+    const o0 = from ? from.o : 1;
+    const out = ghost.animate(
+      [
+        { transform: 'translateX(' + x0 + 'px)', opacity: o0 },
+        { transform: 'translateX(' + -dir * w * 0.55 + 'px)', opacity: 0 }
+      ],
+      { duration: 240, easing: 'cubic-bezier(.3,0,.2,1)', fill: 'forwards' }
+    );
+    neu.animate(
+      [
+        { transform: 'translateX(' + dir * w * 0.35 + 'px)', opacity: 0 },
+        { transform: 'none', opacity: 1 }
+      ],
+      { duration: 320, easing: 'cubic-bezier(.22,.9,.24,1)' }
+    );
+    const done = () => {
+      ghost.remove();
+      if (!host.querySelector('.swipe-ghost')) host.classList.remove('swapping');
+    };
+    out.onfinish = done;
+    setTimeout(done, 400);
+  };
 
   /* Swipe anywhere on Activity or Insights: the page follows your finger, then snaps to the previous or next period.
      Insights' spending line is left alone, because sliding a finger along it reads the values. */
@@ -325,13 +371,9 @@
         if (go) s.nav.step(dir);
         return;
       }
-      s.el.style.transition = 'transform .16s cubic-bezier(.4,0,1,1), opacity .16s';
-      s.el.style.transform = 'translateX(' + (s.dx < 0 ? -w : w) + 'px)';
-      s.el.style.opacity = '0';
-      setTimeout(() => {
-        s.nav.step(dir);
-        U.vibrate(5);
-      }, 150);
+      /* hand over straight away from wherever your finger left it */
+      s.nav.step(dir, { x: s.dx, o: Number(s.el.style.opacity || 1) });
+      U.vibrate(5);
     };
     document.addEventListener('pointerup', end);
     document.addEventListener('pointercancel', end);
@@ -560,21 +602,19 @@
     });
   };
   UI.insCanNext = () => S.mStart(UI.insMonth) < S.mStart(U.today());
-  UI.insStep = (dir) => {
+  UI.insStep = (dir, from) => {
     if (dir > 0 && !UI.insCanNext()) return false;
     const next = S.mAdd(UI.insMonth, dir);
     if (next > U.today()) return false;
     UI.insMonth = next;
-    UI.insEnter = U.reducedMotion() ? null : dir > 0 ? 'in-r' : 'in-l';
-    UI.refresh();
+    UI.swapPeriod(dir, from);
     return true;
   };
-  UI.swipeNav.insights = { canNext: () => UI.insCanNext(), step: (dir) => UI.insStep(dir) };
+  UI.swipeNav.insights = { canNext: () => UI.insCanNext(), step: (dir, from) => UI.insStep(dir, from) };
   A['ins-now'] = () => {
     UI.insMonth = U.today();
-    UI.insEnter = U.reducedMotion() ? null : 'in-r';
     U.vibrate(5);
-    UI.refresh();
+    UI.swapPeriod(1);
   };
   A['ins-step'] = (el) => UI.insStep(Number(el.getAttribute('data-dir')));
 
