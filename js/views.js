@@ -187,7 +187,7 @@
       h += UI.seg('Period', [{ id: 'day', label: 'Day' }, { id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }], st.period, 'act-period');
       h += `<div class="swipe-area${UI.actEnter ? ' ' + UI.actEnter : ''}">`;
       UI.actEnter = null;
-      h += `<div class="range-nav"><button class="icon-btn press" data-act="act-step" data-dir="-1" aria-label="Previous">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-period" aria-label="Choose a ${st.period}: ${esc(r.label)}">${UI.rangeText(r.label, r.sub)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="act-step" data-dir="1" aria-label="Next"${canNext ? '' : ' disabled'}>${ic('chevR', 20, 2)}</button></div>`;
+      h += `<div class="range-nav"><button class="icon-btn press" data-lift data-act="act-step" data-dir="-1" aria-label="Previous">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-lift data-act="pick-period" aria-label="Choose a ${st.period}: ${esc(r.label)}">${UI.rangeText(r.label, r.sub)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-lift data-act="act-step" data-dir="1" aria-label="Next"${canNext ? '' : ' disabled'}>${ic('chevR', 20, 2)}</button></div>`;
       const all = S.range(r.from, r.to);
       const tot = S.totals(r.from, r.to);
       h += `<section class="card summary3"><div><span class="lbl">Money in</span><span class="mid in">${U.fmt(tot.in, { plus: true })}</span></div><div><span class="lbl">Money out</span><span class="mid">${U.fmt(-tot.out)}</span></div><div class="r"><span class="lbl">Net</span><span class="mid">${U.fmt(tot.net, { plus: true })}</span></div></section>`;
@@ -515,7 +515,7 @@
       const tot = S.totals(m, end);
       let h = `<header class="appbar topbar"><h1 class="h1">Insights</h1>${isCurrent ? UI.noPill('insights') : UI.nowPill('insights', 'ins-now', 'This month')}</header><div class="stack"><div class="swipe-area${UI.insEnter ? ' ' + UI.insEnter : ''}">`;
       UI.insEnter = null;
-      h += `<div class="range-nav"><button class="icon-btn press" data-act="ins-step" data-dir="-1" aria-label="Previous month">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-act="pick-ins-month" aria-label="Choose a month: ${S.mLabel(m)}">${UI.rangeText(S.mLabel(m), S.mSpan(m))}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-act="ins-step" data-dir="1" aria-label="Next month"${isCurrent ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div>`;
+      h += `<div class="range-nav"><button class="icon-btn press" data-lift data-act="ins-step" data-dir="-1" aria-label="Previous month">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-lift data-act="pick-ins-month" aria-label="Choose a month: ${S.mLabel(m)}">${UI.rangeText(S.mLabel(m), S.mSpan(m))}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-lift data-act="ins-step" data-dir="1" aria-label="Next month"${isCurrent ? ' disabled' : ''}>${ic('chevR', 20, 2)}</button></div>`;
       if (!S.tx.length) {
         h += UI.empty('insights', 'Charts appear as you log', 'Once you’ve added a few transactions, this is where you’ll see where your money goes.', `<button class="btn btn-primary press" data-act="quick-add">${ic('plus', 18, 2.2)} Add a transaction</button>`);
         return h + '</div></div>';
