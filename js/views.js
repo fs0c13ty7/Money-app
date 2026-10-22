@@ -202,6 +202,10 @@
         h += `</div>`;
       }
       const list = st.cat ? all.filter((t) => t.categoryId === st.cat) : all;
+      if (st.cat) {
+        const net = list.reduce((a, t) => a + S.signed(t), 0);
+        h += `<div class="filter-note${UI.fnPop ? ' pop' : ''}" role="status"><span class="fn-ic">${ic('list', 16, 2)}</span><span class="fn-text">Showing <b>${esc(S.cat(st.cat).name)}</b> only · ${list.length} ${list.length === 1 ? 'entry' : 'entries'}${list.length ? ' · ' + U.fmt(net, { plus: true }) : ''}</span><button class="fn-clear press" data-act="act-cat" data-cat="" aria-label="Clear filter, show all categories">${ic('close', 14, 2.4)} Clear</button></div>`;
+      }
       if (!list.length) {
         h += UI.empty('list', st.cat ? 'Nothing in ' + S.cat(st.cat).name : 'Nothing logged', st.period === 'day' ? 'No transactions on this day.' : 'No transactions in this period.', `<button class="btn btn-primary press" data-act="quick-add" data-date="${st.period === 'day' ? st.anchor : ''}">${ic('plus', 18, 2.2)} Add one</button>`);
       } else {
@@ -222,6 +226,22 @@
       }
       h += `</div></div>`;
       return h;
+    },
+    /* keep the filter row where you left it, and make sure the chosen filter is on screen */
+    after(el) {
+      UI.fnPop = false;
+      const row = el.querySelector('.swipe-area .chips.scroll-x');
+      if (!row) return;
+      if (UI.chipScroll != null) row.scrollLeft = UI.chipScroll;
+      UI.chipScroll = null;
+      const on = row.querySelector('.chip.on');
+      if (!on) return;
+      const rr = row.getBoundingClientRect();
+      const cr = on.getBoundingClientRect();
+      const pad = 20;
+      if (cr.left < rr.left + pad || cr.right > rr.right - pad) {
+        row.scrollLeft += cr.left - rr.left - (rr.width - cr.width) / 2;
+      }
     }
   };
   A['act-period'] = (el) => {
@@ -390,7 +410,10 @@
     );
   })();
   A['act-cat'] = (el) => {
+    const row = document.querySelector('#view .swipe-area .chips.scroll-x');
+    UI.chipScroll = row ? row.scrollLeft : null;
     UI.act.cat = el.getAttribute('data-cat') || null;
+    UI.fnPop = !U.reducedMotion();
     UI.refresh();
   };
 

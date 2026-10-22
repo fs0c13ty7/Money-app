@@ -610,3 +610,11 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
 /* period hand-over: the previous period's snapshot moving out */
 .swapping { position: relative; }
 .swipe-ghost { position: absolute; display: flex; flex-direction: column; gap: 14px; margin: 0; pointer-events: none; will-change: transform, opacity; }
+
+/* active category filter on Activity */
+.filter-note { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: 14px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; font-weight: 650; }
+.filter-note.pop { animation: pillIn .28s var(--ease) both; }
+.filter-note b { font-weight: 800; }
+.fn-ic { display: grid; place-items: center; flex: none; }
+.fn-text { flex: 1; min-width: 0; color: var(--ink); }
+.fn-clear { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--surface); color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 800; }
