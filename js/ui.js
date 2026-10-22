@@ -316,10 +316,10 @@
   });
   /* Buttons marked data-lift act the moment your finger lifts off them. After a swipe, the phone's
      browser can go a second or more without turning a press into a "click" (confirmed with an
-     on-screen tap test), so these buttons don't wait for it. The click that may follow is ignored. */
+     on-screen tap test), so these buttons don't wait for it. The click that may follow from the same press is ignored. */
   (function () {
     let down = null;
-    let ranAt = 0;
+    let ran = null;
     document.addEventListener(
       'pointerdown',
       (e) => {
@@ -346,7 +346,7 @@
         if (over !== b || b.disabled || !document.body.contains(b)) return;
         const fn = UI.actions[b.getAttribute('data-act')];
         if (!fn) return;
-        ranAt = Date.now();
+        ran = { at: Date.now(), x: e.clientX, y: e.clientY };
         fn(b, e);
       },
       true
@@ -354,8 +354,11 @@
     document.addEventListener(
       'click',
       (e) => {
-        if (Date.now() - ranAt > 600) return;
-        ranAt = 0;
+        /* only the click from that same press: same spot, straight after. Taps elsewhere go through */
+        if (!ran) return;
+        const same = Date.now() - ran.at < 600 && Math.abs(e.clientX - ran.x) < 24 && Math.abs(e.clientY - ran.y) < 24;
+        ran = null;
+        if (!same) return;
         e.stopPropagation();
         e.preventDefault();
       },
