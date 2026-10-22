@@ -314,6 +314,54 @@
     if (el.hasAttribute('data-seg-key')) UI.noteSeg(el);
     fn(el, e);
   });
+  /* Buttons marked data-lift act the moment your finger lifts off them. After a swipe, the phone's
+     browser can go a second or more without turning a press into a "click" (confirmed with an
+     on-screen tap test), so these buttons don't wait for it. The click that may follow is ignored. */
+  (function () {
+    let down = null;
+    let ranAt = 0;
+    document.addEventListener(
+      'pointerdown',
+      (e) => {
+        const b = e.target.closest && e.target.closest('[data-lift]');
+        down = b && (e.pointerType !== 'mouse' || e.button === 0) ? { el: b, id: e.pointerId, x: e.clientX, y: e.clientY } : null;
+      },
+      true
+    );
+    document.addEventListener(
+      'pointermove',
+      (e) => {
+        if (down && e.pointerId === down.id && (Math.abs(e.clientX - down.x) > 10 || Math.abs(e.clientY - down.y) > 10)) down = null;
+      },
+      true
+    );
+    document.addEventListener('pointercancel', () => (down = null), true);
+    document.addEventListener(
+      'pointerup',
+      (e) => {
+        if (!down || e.pointerId !== down.id) return;
+        const b = down.el;
+        down = null;
+        const over = e.target.closest && e.target.closest('[data-lift]');
+        if (over !== b || b.disabled || !document.body.contains(b)) return;
+        const fn = UI.actions[b.getAttribute('data-act')];
+        if (!fn) return;
+        ranAt = Date.now();
+        fn(b, e);
+      },
+      true
+    );
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (Date.now() - ranAt > 600) return;
+        ranAt = 0;
+        e.stopPropagation();
+        e.preventDefault();
+      },
+      true
+    );
+  })();
   UI.actions.tab = (el) => UI.tab(el.getAttribute('data-to'));
   UI.actions.back = () => UI.back();
   UI.actions.go = (el) => {

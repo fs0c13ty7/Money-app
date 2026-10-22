@@ -168,7 +168,7 @@
   UI.nowPill = (route, act, label) => {
     const fresh = !UI.pillShown[route];
     UI.pillShown[route] = true;
-    return `<button class="now-pill press${fresh && !U.reducedMotion() ? ' pop' : ''}" data-act="${act}" aria-label="Back to ${label.toLowerCase()}">${ic('jump', 15, 2.4)}<span>${label}</span></button>`;
+    return `<button class="now-pill press${fresh && !U.reducedMotion() ? ' pop' : ''}" data-lift data-act="${act}" aria-label="Back to ${label.toLowerCase()}">${ic('jump', 15, 2.4)}<span>${label}</span></button>`;
   };
   UI.noPill = (route) => {
     UI.pillShown[route] = false;
@@ -242,7 +242,6 @@
     return true;
   };
   A['act-now'] = () => {
-    UI.tapTest && UI.tapTest.ran();
     UI.act.anchor = U.today();
     U.vibrate(5);
     UI.swapPeriod(1);
@@ -360,7 +359,6 @@
       st = null;
       setTimeout(() => (swallowClick = false), 400);
       if (s.lock !== 'x') return;
-      UI.tapTest && UI.tapTest.swiped();
       const w = width();
       const dir = s.dx < 0 ? 1 : -1;
       const fast = Math.abs(s.v || 0) > 0.45 && Math.sign(s.v) === Math.sign(s.dx);
@@ -385,7 +383,6 @@
       (e) => {
         if (!swallowClick) return;
         swallowClick = false;
-        UI.tapTest && UI.tapTest.blocked('swipe guard');
         e.stopPropagation();
         e.preventDefault();
       },
@@ -616,7 +613,6 @@
   };
   UI.swipeNav.insights = { canNext: () => UI.insCanNext(), step: (dir, from) => UI.insStep(dir, from) };
   A['ins-now'] = () => {
-    UI.tapTest && UI.tapTest.ran();
     UI.insMonth = U.today();
     U.vibrate(5);
     UI.swapPeriod(1);
@@ -1143,79 +1139,4 @@
     MT.sheets.txForm(t);
   };
 
-  /* ================= TEMPORARY TAP TEST =================
-     Shows what the phone reports when you tap the "This month" / "Today" button, to find out why
-     early taps sometimes do nothing. Remove once diagnosed. Touches pass straight through the panel. */
-  (function () {
-    const rows = [];
-    let lastSwipe = 0;
-    let cur = null;
-    let n = 0;
-    const panel = document.createElement('div');
-    panel.className = 'tap-test';
-    panel.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(panel);
-    const sec = (ms) => (ms / 1000).toFixed(2) + 's';
-    const draw = () => {
-      panel.innerHTML = '<b>Tap test (temporary)</b>' + (rows.length ? rows.slice(-5).map((r) => '<div class="' + r.cls + '">' + r.text + '</div>').join('') : '<div>Swipe, then tap the “This month” button</div>');
-    };
-    const finish = () => {
-      if (!cur || cur.done) return;
-      cur.done = true;
-      let text;
-      let cls;
-      if (cur.ran) {
-        text = 'worked';
-        cls = 'ok';
-      } else if (cur.blocked) {
-        text = 'app blocked it (' + cur.blocked + ')';
-        cls = 'bad';
-      } else if (cur.cancel) {
-        text = 'phone cancelled the touch';
-        cls = 'bad';
-      } else if (cur.lift && !cur.click) {
-        text = 'pressed + lifted, but phone sent no tap';
-        cls = 'bad';
-      } else if (cur.click) {
-        text = 'tap arrived but button didn’t run';
-        cls = 'bad';
-      } else {
-        text = 'no lift seen';
-        cls = 'bad';
-      }
-      rows.push({ cls: cls, text: '#' + cur.n + ' · ' + cur.since + ' after swipe · held ' + cur.held + ' · ' + text });
-      draw();
-    };
-    const onPill = (e) => !!(e.target && e.target.closest && e.target.closest('.now-pill'));
-    window.addEventListener('pointerdown', (e) => {
-      if (!onPill(e)) return;
-      finish();
-      cur = { n: ++n, t: performance.now(), since: lastSwipe ? sec(performance.now() - lastSwipe) : 'no swipe', held: '?' };
-    }, true);
-    window.addEventListener('pointerup', (e) => {
-      if (!cur || cur.done || !onPill(e)) return;
-      cur.lift = true;
-      cur.held = sec(performance.now() - cur.t);
-      setTimeout(finish, 600);
-    }, true);
-    window.addEventListener('pointercancel', () => {
-      if (!cur || cur.done) return;
-      cur.cancel = true;
-      cur.held = sec(performance.now() - cur.t);
-      setTimeout(finish, 600);
-    }, true);
-    window.addEventListener('click', (e) => {
-      if (cur && !cur.done && onPill(e)) cur.click = true;
-    }, true);
-    UI.tapTest = {
-      swiped: () => (lastSwipe = performance.now()),
-      ran: () => {
-        if (cur && !cur.done) cur.ran = true;
-      },
-      blocked: (why) => {
-        if (cur && !cur.done) cur.blocked = why;
-      }
-    };
-    draw();
-  })();
 })();
