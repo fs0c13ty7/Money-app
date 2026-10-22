@@ -977,6 +977,7 @@
       (e) => {
         if (firedId === null && Date.now() > swallowUntil) return;
         swallowUntil = 0;
+        UI.tapTest && UI.tapTest.blocked('hold guard');
         e.stopPropagation();
         e.preventDefault();
       },

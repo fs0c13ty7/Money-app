@@ -610,3 +610,9 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
 /* period hand-over: the previous period's snapshot moving out */
 .swapping { position: relative; }
 .swipe-ghost { position: absolute; display: flex; flex-direction: column; gap: 14px; margin: 0; pointer-events: none; will-change: transform, opacity; }
+
+/* TEMPORARY tap test panel */
+.tap-test { position: fixed; left: 10px; right: 10px; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); z-index: 90; pointer-events: none; padding: 8px 10px; border-radius: 12px; background: rgba(8, 10, 16, .95); color: #FFFFFF; font: 600 11px/1.45 ui-monospace, monospace; max-width: 540px; margin: 0 auto; }
+.tap-test b { display: block; margin-bottom: 2px; color: #B9C9FF; }
+.tap-test .ok { color: #7BE0A8; }
+.tap-test .bad { color: #FF9AA6; }

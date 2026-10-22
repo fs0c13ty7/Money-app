@@ -6,7 +6,7 @@
   const S = MT.store;
   const UI = MT.ui;
   const A = UI.actions;
-  MT.VERSION = '1.6.5';
+  MT.VERSION = '1.6.6';
 
   /* ---------- Example data: flagged so it can be removed in one tap ---------- */
   MT.examples = () => {
