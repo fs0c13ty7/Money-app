@@ -18,10 +18,10 @@
     ['health', 'Health & Fitness', 'expense', 'health', 'green'],
     ['home', 'Home', 'expense', 'house', 'slate'],
     ['insure', 'Insurances', 'expense', 'insure', 'sky'],
-    ['invest', 'Investment', 'expense', 'invest', 'green', false, true],
+    ['invest', 'Investment', 'expense', 'invest', 'green'],
     ['music', 'Music', 'expense', 'music', 'purple'],
     ['other', 'Other Expense', 'expense', 'box', 'slate', true],
-    ['tout', 'Outgoing transfer', 'expense', 'out', 'slate', true, true],
+    ['tout', 'Outgoing transfer', 'expense', 'out', 'slate', true],
     ['pet', 'Pet', 'expense', 'pet', 'amber'],
     ['shopping', 'Shopping', 'expense', 'bag', 'pink'],
     ['transport', 'Transportation', 'expense', 'bus', 'amber'],
@@ -34,11 +34,7 @@
     ['refund', 'Refund', 'income', 'refund', 'green'],
     ['salary', 'Salary', 'income', 'salary', 'green'],
     ['selling', 'Selling', 'income', 'tag', 'sky']
-  ].map((c) => {
-    const o = { id: c[0], name: c[1], type: c[2], icon: c[3], color: c[4], builtIn: !!c[5] };
-    if (c[6]) o.notSpending = true;
-    return o;
-  });
+  ].map((c) => ({ id: c[0], name: c[1], type: c[2], icon: c[3], color: c[4], builtIn: !!c[5] }));
 
   const ADJUST = { id: 'adjust', name: 'Balance adjustment', type: 'system', icon: 'sliders', color: 'slate', builtIn: true, system: true };
 
@@ -80,18 +76,6 @@
     if (!S.cats.find((c) => c.id === 'adjust')) {
       S.cats.push(Object.assign({}, ADJUST));
       ops.push({ store: 'categories', put: ADJUST });
-    }
-    /* v1.8: savings and transfers out stop counting as spending (once; you can switch it back per category) */
-    if (!S.meta.nsDefaults) {
-      ['tout', 'invest'].forEach((id) => {
-        const c = S.cats.find((x) => x.id === id);
-        if (c && c.notSpending === undefined) {
-          c.notSpending = true;
-          ops.push({ store: 'categories', put: c });
-        }
-      });
-      S.meta.nsDefaults = true;
-      ops.push({ store: 'meta', put: { key: 'nsDefaults', value: true } });
     }
     Object.keys(DEFAULT_META).forEach((k) => {
       if (!(k in S.meta)) S.meta[k] = JSON.parse(JSON.stringify(DEFAULT_META[k]));
@@ -146,8 +130,7 @@
       type: c.type,
       icon: c.icon || 'box',
       color: c.color || 'slate',
-      builtIn: existing ? !!existing.builtIn : false,
-      notSpending: c.notSpending !== undefined ? !!c.notSpending : !!(existing && existing.notSpending)
+      builtIn: existing ? !!existing.builtIn : false
     });
     await D.write([{ store: 'categories', put: out }]);
     const i = S.cats.findIndex((x) => x.id === out.id);
@@ -280,28 +263,7 @@
   };
   S.signed = (t) => (t.type === 'income' ? t.amount : -t.amount);
   S.balance = () => S.tx.reduce((a, t) => a + S.signed(t), 0);
-  /* categories marked "not spending" (savings, transfers) stay in the balance but out of totals and charts */
-  let nsCache = { rev: -1, n: -1, set: null };
-  S.notSpendingIds = () => {
-    if (nsCache.rev !== S.rev || nsCache.n !== S.cats.length) nsCache = { rev: S.rev, n: S.cats.length, set: new Set(S.cats.filter((c) => c.notSpending).map((c) => c.id)) };
-    return nsCache.set;
-  };
-  S.isStat = (t) => t.categoryId !== 'adjust' && !t.excluded && !S.notSpendingIds().has(t.categoryId);
-  /* write many changed entries in one go (used to move entries between categories, and to undo that) */
-  S.putTxBatch = async (list) => {
-    if (!list.length) return;
-    await D.write(list.map((t) => ({ store: 'tx', put: t })));
-    const byId = new Map(list.map((t) => [t.id, t]));
-    S.tx = S.tx.map((t) => byId.get(t.id) || t);
-    S.emit();
-  };
-  S.putRecBatch = async (list) => {
-    if (!list.length) return;
-    await D.write(list.map((r) => ({ store: 'recurring', put: r })));
-    const byId = new Map(list.map((r) => [r.id, r]));
-    S.rec = S.rec.map((r) => byId.get(r.id) || r);
-    S.emit();
-  };
+  S.isStat = (t) => t.categoryId !== 'adjust' && !t.excluded;
   S.range = (from, to) => S.tx.filter((t) => t.date >= from && t.date <= to);
   S.totals = (from, to) => {
     let inn = 0;
@@ -313,11 +275,10 @@
     });
     return { in: inn, out: out, net: inn - out };
   };
-  S.byCategory = (from, to, type, only) => {
+  S.byCategory = (from, to, type) => {
     const m = {};
     S.range(from, to).forEach((t) => {
       if (!S.isStat(t) || t.type !== (type || 'expense')) return;
-      if (only && !only(t)) return;
       const r = m[t.categoryId] || (m[t.categoryId] = { cat: S.cat(t.categoryId), total: 0, count: 0 });
       r.total += t.amount;
       r.count += 1;

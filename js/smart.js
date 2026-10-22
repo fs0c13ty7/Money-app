@@ -14,34 +14,6 @@
       .replace(/\s+/g, ' ')
       .trim();
 
-  /* ---------- Bills vs everyday spending ----------
-     A bill is an expense that comes from one of your recurring payments: logged by it, or with the same name
-     as one (so older history counts too). Everything else you spend is everyday spending. */
-  let billCache = { rev: -1, names: null, ids: null };
-  const billInfo = () => {
-    if (billCache.rev !== S.rev || !billCache.names) {
-      const rules = S.rec.filter((r) => r.type === 'expense');
-      billCache = { rev: S.rev, names: new Set(rules.map((r) => X.norm(r.name)).filter(Boolean)), ids: new Set(rules.map((r) => r.id)) };
-    }
-    return billCache;
-  };
-  X.hasBills = () => billInfo().ids.size > 0;
-  X.isBill = (t) => {
-    if (t.type !== 'expense') return false;
-    const b = billInfo();
-    return (t.recurringId && b.ids.has(t.recurringId)) || b.names.has(X.norm(t.name));
-  };
-  X.splitSpend = (from, to) => {
-    let bills = 0;
-    let everyday = 0;
-    S.range(from, to).forEach((t) => {
-      if (t.type !== 'expense' || !S.isStat(t)) return;
-      if (X.isBill(t)) bills += t.amount;
-      else everyday += t.amount;
-    });
-    return { bills: bills, everyday: everyday };
-  };
-
   const KEYWORDS = {
     food: 'coffee lunch dinner breakfast brunch cafe café restaurant pizza takeaway tea pub bar drinks snack snacks food groceries grocery tesco sainsbury sainsburys asda aldi lidl morrisons waitrose coop co op greggs mcdonalds mcdonald kfc nandos starbucks costa pret deliveroo justeat ubereats burger chippy',
     transport: 'uber bolt taxi cab bus train rail tfl fuel petrol diesel parking toll trainline metro tram',

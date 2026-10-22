@@ -583,8 +583,6 @@
       h += `<div class="cat-name-row"><span id="cf-prev">${preview()}</span><label class="field-block grow" for="cf-name"><span class="lbl">Name</span><input class="input" id="cf-name" autocomplete="off" placeholder="e.g. Coffee" value="${esc(c.name)}" ${isEdit ? '' : 'autofocus'}></label></div>`;
       h += `<div class="field-block"><span class="lbl">Colour</span><div class="swatches" role="group" aria-label="Colour">${U.COLORS.map((k) => `<button type="button" class="swatch c-${k}${c.color === k ? ' on' : ''}" data-act="cf-color" data-val="${k}" aria-label="${U.COLOR_NAMES[k]}" aria-pressed="${c.color === k}"><span></span></button>`).join('')}</div></div>`;
       h += `<div class="field-block"><span class="lbl">Icon</span><div class="icon-grid" role="group" aria-label="Icon">${U.PICKABLE_ICONS.map((k) => `<button type="button" class="icon-opt${c.icon === k ? ' on' : ''}" data-act="cf-icon" data-val="${k}" aria-label="${k}" aria-pressed="${c.icon === k}">${ic(k, 20)}</button>`).join('')}</div></div>`;
-      const inc = c.type === 'income';
-      h += `<div class="set-row bordered cf-ns"><span id="cf-ns-lbl" class="set-text"><b>${inc ? 'Not real income' : 'Not spending'}</b><span>${inc ? 'For money moved in from your own accounts. It still counts in your balance, but not in income totals or charts.' : 'For savings, investments and transfers to your own accounts. It still counts in your balance, but not in spending totals or charts.'}</span></span>${UI.switch('cf-ns', !!c.notSpending, 'cf-ns', 'cf-ns-lbl')}</div>`;
       h += `<button type="button" class="btn btn-primary btn-lg press" data-act="cf-save">${isEdit ? 'Save changes' : 'Add category'}</button>`;
       if (isEdit && !c.builtIn) h += `<button type="button" class="btn btn-ghost-danger press" data-act="cf-remove">Remove category</button>`;
       return h + `</div>`;
@@ -601,7 +599,6 @@
         setOn('.swatch', k);
         sheet.querySelector('#cf-prev').innerHTML = preview();
       },
-      ns: (on) => (c.notSpending = on),
       icon: (k) => {
         c.icon = k;
         setOn('.icon-opt', k);
@@ -639,12 +636,6 @@
   A['cf-color'] = (el) => M.cf && M.cf.color(el.getAttribute('data-val'));
   A['cf-icon'] = (el) => M.cf && M.cf.icon(el.getAttribute('data-val'));
   A['cf-save'] = (el) => M.cf && M.cf.save(el);
-  A['cf-ns'] = (el) => {
-    if (!M.cf) return;
-    const on = el.getAttribute('aria-checked') !== 'true';
-    el.setAttribute('aria-checked', String(on));
-    M.cf.ns(on);
-  };
   A['cf-remove'] = () => M.cf && M.cf.remove();
 
   /* ================= FIRST RUN ================= */
@@ -865,48 +856,6 @@
   /* Press and hold a row for about half a second: it sinks slightly while you hold, buzzes once,
      and a small menu opens. Any movement (scrolling, swiping months) cancels it, and the tap that
      ends a hold never opens the edit form, so nothing fires by accident. */
-  const sameName = (t) => {
-    const n = X.norm(t.name);
-    return n ? S.tx.filter((x) => x.type === t.type && X.norm(x.name) === n) : [];
-  };
-  /* choose a category for every entry with this name (and any recurring payment with it) */
-  M.moveAll = (t) => {
-    const list = sameName(t);
-    let entry = null;
-    const render = () =>
-      `<div class="form"><h2 class="sheet-title">Move all “${esc(t.name)}”</h2><p class="sheet-text">${list.length} entries. Pick their new category.</p><div class="move-cats">${S.catsOf(t.type)
-        .map((c) => `<button type="button" class="chip cat-chip press${c.id === t.categoryId ? ' on' : ''}" data-act="mv-pick" data-id="${esc(c.id)}">${UI.tile(c, 'sm')}${esc(c.name)}${c.notSpending ? ' <span class="muted sm">· not ' + (c.type === 'income' ? 'income' : 'spending') + '</span>' : ''}</button>`)
-        .join('')}</div><button type="button" class="btn press" data-act="sheet-close">Cancel</button></div>`;
-    M.mv = {
-      pick: async (id) => {
-        try {
-          const before = list.filter((x) => x.categoryId !== id);
-          const now = Date.now();
-          const changed = before.map((x) => Object.assign({}, x, { categoryId: id, updatedAt: now }));
-          const n = X.norm(t.name);
-          const recBefore = S.rec.filter((r) => r.type === t.type && X.norm(r.name) === n && r.categoryId !== id);
-          const recChanged = recBefore.map((r) => Object.assign({}, r, { categoryId: id }));
-          await S.putTxBatch(changed);
-          await S.putRecBatch(recChanged);
-          await UI.closeSheet();
-          UI.toast('Moved ' + changed.length + ' to ' + S.cat(id).name + (recChanged.length ? ' (and its recurring payment)' : ''), {
-            action: 'Undo',
-            onAction: async () => {
-              await S.putTxBatch(before);
-              await S.putRecBatch(recBefore);
-              UI.toast('Move undone');
-            }
-          });
-        } catch (e) {
-          UI.error(e);
-        }
-      }
-    };
-    entry = UI.openSheet({ label: 'Move all ' + t.name, cls: 'tall', render: render, onClose: () => (M.mv = null) });
-    return entry;
-  };
-  A['mv-pick'] = (el) => M.mv && M.mv.pick(el.getAttribute('data-id'));
-
   M.txActions = (t) => {
     const c = S.cat(t.categoryId);
     let entry = null;
@@ -917,8 +866,6 @@
       h += opt('txa-dup', 'copy', 'Duplicate', 'Opens a copy dated today, ready to save');
       h += opt('txa-edit', 'edit', 'Edit', 'Change the amount, category, date or note');
       h += cur.excluded ? opt('txa-excl', 'eye', 'Include in reports', 'Count it in charts and totals again') : opt('txa-excl', 'eyeOff', 'Leave out of reports', 'Stays in your balance, but not in charts or totals');
-      const same = cur.name ? sameName(cur) : [];
-      if (same.length > 1) h += opt('txa-move', 'more', 'Move all “' + esc(cur.name) + '”', 'Change the category of all ' + same.length + ' entries with this name');
       h += opt('txa-del', 'trash', 'Delete', 'You can undo straight after', 'danger');
       return h + `</div></div>`;
     };
@@ -939,11 +886,6 @@
         run(async (cur) => {
           await UI.closeSheet();
           M.txForm(cur);
-        }),
-      move: () =>
-        run(async (cur) => {
-          await UI.closeSheet();
-          M.moveAll(cur);
         }),
       excl: () =>
         run(async (cur) => {
@@ -979,7 +921,6 @@
   A['txa-edit'] = () => M.txa && M.txa.edit();
   A['txa-excl'] = () => M.txa && M.txa.excl();
   A['txa-del'] = () => M.txa && M.txa.del();
-  A['txa-move'] = () => M.txa && M.txa.move();
 
   (function () {
     const HOLD = 480;
