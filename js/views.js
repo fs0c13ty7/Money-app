@@ -204,7 +204,7 @@
       const list = st.cat ? all.filter((t) => t.categoryId === st.cat) : all;
       if (st.cat) {
         const net = list.reduce((a, t) => a + S.signed(t), 0);
-        h += `<div class="filter-note${UI.fnPop ? ' pop' : ''}" role="status"><span class="fn-ic">${ic('list', 16, 2)}</span><span class="fn-text">Showing <b>${esc(S.cat(st.cat).name)}</b> only · ${list.length} ${list.length === 1 ? 'entry' : 'entries'}${list.length ? ' · ' + U.fmt(net, { plus: true }) : ''}</span><button class="fn-clear press" data-act="act-cat" data-cat="" aria-label="Clear filter, show all categories">${ic('close', 14, 2.4)} Clear</button></div>`;
+        h += `<div class="filter-note${UI.fnPop ? ' pop' : ''}" role="status"><span class="fn-ic">${ic('list', 16, 2)}</span><span class="fn-text"><span class="fn-title">Showing <b>${esc(S.cat(st.cat).name)}</b> only</span><span class="fn-sub"><span class="nw">${list.length} ${list.length === 1 ? 'entry' : 'entries'}</span>${list.length ? ' <span class="nw">· ' + U.fmt(net, { plus: true }) + '</span>' : ''}</span></span><button class="fn-clear press" data-act="act-cat" data-cat="" aria-label="Clear filter, show all categories">${ic('close', 14, 2.4)} Clear</button></div>`;
       }
       if (!list.length) {
         h += UI.empty('list', st.cat ? 'Nothing in ' + S.cat(st.cat).name : 'Nothing logged', st.period === 'day' ? 'No transactions on this day.' : 'No transactions in this period.', `<button class="btn btn-primary press" data-act="quick-add" data-date="${st.period === 'day' ? st.anchor : ''}">${ic('plus', 18, 2.2)} Add one</button>`);

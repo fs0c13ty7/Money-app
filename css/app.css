@@ -616,5 +616,7 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
 .filter-note.pop { animation: pillIn .28s var(--ease) both; }
 .filter-note b { font-weight: 800; }
 .fn-ic { display: grid; place-items: center; flex: none; }
-.fn-text { flex: 1; min-width: 0; color: var(--ink); }
+.fn-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; color: var(--ink); }
+.fn-sub { font-size: 12.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.nw { white-space: nowrap; }
 .fn-clear { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--surface); color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 800; }
