@@ -270,12 +270,13 @@
     ghost.inert = true;
     ghost.removeAttribute('style');
     ghost.style.top = r0.top - hr.top + 'px';
-    ghost.style.left = r0.left - hr.left + 'px';
+    const x0 = from ? from.x : 0;
+    const o0 = from ? from.o : 1;
+    /* the measured box already includes the finger's offset, so take it back out; the animation adds it */
+    ghost.style.left = r0.left - x0 - hr.left + 'px';
     ghost.style.width = r0.width + 'px';
     host.insertBefore(ghost, neu);
     const w = r0.width;
-    const x0 = from ? from.x : 0;
-    const o0 = from ? from.o : 1;
     const out = ghost.animate(
       [
         { transform: 'translateX(' + x0 + 'px)', opacity: o0 },
