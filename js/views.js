@@ -46,6 +46,7 @@
       /* month card */
       h += `<section class="card"><div class="card-head"><h2 class="card-title">${S.mName(today)} so far</h2><span class="muted sm">Day ${fc.dayIdx} of ${fc.days}</span></div>`;
       h += `<div class="pair"><div><span class="lbl">Spent</span><span class="big">${U.fmt(tot.out)}</span></div><div><span class="lbl">Income</span><span class="big in">${U.fmt(tot.in, { plus: true })}</span></div></div>`;
+      if (X.hasBills()) h += UI.splitBar(X.splitSpend(S.mStart(today), today));
       h += pacePill(fc);
       if (S.tx.length) {
         h += MT.charts.monthLine(fc, { animate: UI.entering });
@@ -100,6 +101,14 @@
     if (fc.projection) l += `<span><i class="sw sw-proj"></i>Forecast · ${U.fmt(fc.projection)}</span>`;
     return l + `</div>`;
   }
+  /* Bills (from your recurring payments) vs everyday spending, as one bar */
+  UI.splitBar = (sp) => {
+    const tot = sp.bills + sp.everyday;
+    if (!tot) return '';
+    const bw = Math.round((sp.bills / tot) * 100);
+    return `<div class="split" role="img" aria-label="Bills ${U.fmt(sp.bills)}, everyday spending ${U.fmt(sp.everyday)}"><div class="split-track" aria-hidden="true">${sp.bills ? `<span class="split-bills" style="flex:${sp.bills}"></span>` : ''}${sp.everyday ? `<span class="split-every" style="flex:${sp.everyday}"></span>` : ''}</div><div class="split-legend"><span><i class="sw sw-bills"></i>Bills <b>${U.fmt(sp.bills)}</b><em>${bw}%</em></span><span><i class="sw sw-every"></i>Everyday <b>${U.fmt(sp.everyday)}</b><em>${100 - bw}%</em></span></div></div>`;
+  };
+
   function catBar(c, total, max, from, to) {
     const pct = total ? Math.round((c.total / total) * 100) : 0;
     const w = max ? Math.max(2, Math.round((c.total / max) * 100)) : 0;
@@ -550,6 +559,7 @@
       } else {
         h += `<p class="lbl">Spent in ${S.mName(m)}${isCurrent ? ' so far' : ''}</p><p class="headline">${U.fmt(tot.out)}</p>${fc.avg && !isCurrent ? `<p class="muted">Your ${fc.avgMonths}-month average before this was ${U.fmt(fc.avg[fc.days - 1])}.</p>` : ''}`;
       }
+      if (X.hasBills()) h += UI.splitBar(X.splitSpend(m, end));
       h += MT.charts.monthLine(fc, { animate: UI.entering }) + lineLegend(fc) + `</section>`;
       /* stat tiles */
       const daily = S.dailySpend(m, end);
@@ -568,15 +578,19 @@
       h += `<button class="stat press" data-act="stat-go" data-period="month" data-anchor="${end}" aria-label="${count} entries. Open all entries for the month">${go}<span class="lbl">Entries</span><span class="mid">${count}</span><span class="tiny">See all</span></button>`;
       h += `</div>`;
       /* categories */
-      const cats = S.byCategory(m, end, 'expense');
-      h += `<section class="card"><div class="card-head"><h2 class="card-title">Where it went</h2><span class="muted sm">${U.fmt(tot.out)}</span></div>`;
+      const split = X.hasBills();
+      const whereMode = split ? UI.insWhere || 'everyday' : 'all';
+      const cats = S.byCategory(m, end, 'expense', whereMode === 'everyday' ? (t) => !X.isBill(t) : null);
+      const wTotal = cats.reduce((a, c) => a + c.total, 0);
+      h += `<section class="card"><div class="card-head"><h2 class="card-title">Where it went</h2>${split ? UI.seg('Where it went', [{ id: 'everyday', label: 'Everyday' }, { id: 'all', label: 'All' }], whereMode, 'ins-where', 'seg-sm') : `<span class="muted sm">${U.fmt(tot.out)}</span>`}</div>`;
+      if (split) h += `<p class="muted sm where-note">${whereMode === 'everyday' ? 'Everything except your recurring bills' : 'Bills and everyday spending'} · <b>${U.fmt(wTotal)}</b></p>`;
       if (cats.length) {
         const top = cats.slice(0, 7);
         const rest = cats.slice(7);
-        h += `<div class="cat-bars">` + top.map((c) => catBar(c, tot.out, cats[0].total, m, end)).join('');
+        h += `<div class="cat-bars">` + top.map((c) => catBar(c, wTotal, cats[0].total, m, end)).join('');
         if (rest.length) {
           const r = { cat: { id: '', name: rest.length + ' more categories', icon: 'more', color: 'slate' }, total: rest.reduce((a, c) => a + c.total, 0) };
-          const pct = Math.round((r.total / tot.out) * 100);
+          const pct = Math.round((r.total / wTotal) * 100);
           h += `<div class="cat-bar static">${UI.tile(r.cat)}<span class="cb-main"><span class="cb-top"><span class="cb-name">${esc(r.cat.name)}</span><span class="cb-amt">${U.fmt(r.total)}</span></span><span class="cb-track"><span class="cb-fill muted-fill" style="width:${Math.max(2, Math.round((r.total / cats[0].total) * 100))}%"></span></span></span><span class="cb-pct">${pct}%</span></div>`;
         }
         h += `</div>`;
@@ -595,6 +609,10 @@
       h += `</div></div>`;
       return h;
     }
+  };
+  A['ins-where'] = (el) => {
+    UI.insWhere = el.getAttribute('data-val');
+    UI.refresh();
   };
   A['stat-go'] = (el) => {
     UI.act = { period: el.getAttribute('data-period'), anchor: el.getAttribute('data-anchor'), cat: null };
@@ -873,7 +891,7 @@
       h += S.catsOf(st.tab)
         .map((c) => {
           const n = counts[c.id] || 0;
-          const sub = n ? n + ' transaction' + (n === 1 ? '' : 's') : 'Not used yet';
+          const sub = (n ? n + ' transaction' + (n === 1 ? '' : 's') : 'Not used yet') + (c.notSpending ? (c.type === 'income' ? ' · not counted as income' : ' · not counted as spending') : '');
           const left = st.edit && !c.builtIn ? `<button class="minus press" data-act="cat-remove" data-id="${esc(c.id)}" aria-label="Remove ${esc(c.name)}"><span></span></button>` : '';
           const right = c.builtIn ? `<span class="badge">${ic('lock', 13, 2)} Built-in</span>` : st.edit ? '' : `<span class="chev">${ic('chevR', 18, 2)}</span>`;
           return `<div class="cat-row${st.edit ? ' editing' : ''}">${left}<button class="tx-row press" data-act="cat-open" data-id="${esc(c.id)}">${UI.tile(c)}<span class="tx-main"><span class="tx-title">${esc(c.name)}</span><span class="tx-sub">${sub}</span></span>${right}</button></div>`;
