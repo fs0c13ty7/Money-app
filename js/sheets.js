@@ -32,11 +32,13 @@
       note: existing ? existing.note : copy ? copy.note : '',
       date: existing ? existing.date : (preset && preset.date) || U.today(),
       repeat: false,
+      dateTouched: false,
       saving: false,
       recurringId: existing ? existing.recurringId : null,
       parsed: null,
       nameSugs: []
     };
+    const baseDate = st.date;
     const defaultCat = (type) => (S.catsByUse(type)[0] || S.cat(S.fallbackFor(type))).id;
     if (!st.categoryId) st.categoryId = defaultCat(st.type);
     let sheet = null;
@@ -125,6 +127,7 @@
       d.addEventListener('change', () => {
         if (/^\d{4}-\d{2}-\d{2}$/.test(d.value)) {
           st.date = d.value;
+          st.dateTouched = true;
           updDates();
         }
       });
@@ -132,7 +135,7 @@
     const updSuggest = () => {
       const box = $('#qa-suggest');
       const p = X.parse(st.name, st.type);
-      st.parsed = p && (p.amount || (p.date && p.date !== st.date)) ? p : null;
+      st.parsed = p && (p.amount || p.date) ? p : null;
       st.nameSugs = X.nameSuggestions(st.name, st.type, 3);
       let h = '';
       if (st.parsed) {
@@ -143,11 +146,22 @@
         if (p.categoryId) parts.push(S.cat(p.categoryId).name);
         h += `<button type="button" class="fill-chip press" data-act="qa-apply">${ic('spark', 16, 2)}<span>Fill in: ${esc(parts.join(' · '))}</span></button>`;
       }
-      if (st.nameSugs.length) {
-        h += `<div class="chips scroll-x">` + st.nameSugs.map((s, i) => `<button type="button" class="chip press" data-act="qa-name-pick" data-i="${i}">${UI.tile(S.cat(s.categoryId), 'sm')}${esc(s.name)} · ${U.fmt(s.amount)}</button>`).join('') + `</div>`;
-      }
-      box.innerHTML = h;
+      const sugs = st.nameSugs.length ? `<div class="chips scroll-x">` + st.nameSugs.map((s, i) => `<button type="button" class="chip press" data-act="qa-name-pick" data-i="${i}">${UI.tile(S.cat(s.categoryId), 'sm')}${esc(s.name)} · ${U.fmt(s.amount)}</button>`).join('') + `</div>` : '';
+      /* if the chip was already showing, redraw it without the fade-in, so it doesn't flash as you type */
+      const had = !!box.querySelector('.fill-chip');
+      box.innerHTML = h + sugs;
+      const chip = box.querySelector('.fill-chip');
+      if (chip && had) chip.classList.add('still');
       updSaveBtn();
+    };
+    /* "yesterday" or "monday" in the description moves the date pills straight away, unless you've picked a date yourself */
+    const liveDate = () => {
+      if (st.dateTouched) return;
+      const want = (st.parsed && st.parsed.date) || baseDate;
+      if (want !== st.date) {
+        st.date = want;
+        updDates();
+      }
     };
     const autoCat = () => {
       if (st.catTouched) return;
@@ -190,6 +204,10 @@
     const save = async () => {
       if (st.saving) return;
       if (!U.keypadPence(st.amt) && st.parsed && st.parsed.amount) applyParse();
+      else if (st.parsed && st.parsed.name && st.parsed.name !== st.name) {
+        /* amount came from the keypad: still tidy the name ("coffee yesterday" is saved as "Coffee") */
+        st.name = st.parsed.name;
+      }
       const amount = U.keypadPence(st.amt);
       if (!amount) {
         const a = $('.qa-amount');
@@ -274,6 +292,7 @@
       },
       date: (d) => {
         st.date = d;
+        st.dateTouched = true;
         updDates();
       },
       repeat: (el) => {
@@ -332,6 +351,7 @@
           st.name = nameIn.value;
           autoCat();
           updSuggest();
+          liveDate();
         });
         nameIn.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
@@ -355,6 +375,21 @@
             }, 80)
           );
         });
+        /* Closing the phone keyboard (its down arrow or Back) doesn't unfocus the text box, so the number pad
+           stayed hidden. When the keyboard goes away, bring the number pad back. */
+        const vv = window.visualViewport;
+        if (vv) {
+          let tallest = vv.height;
+          const onVV = () => {
+            if (!document.body.contains(sheet)) return vv.removeEventListener('resize', onVV);
+            if (vv.height > tallest) tallest = vv.height;
+            if (vv.height < tallest - 120 || !sheet.classList.contains('typing')) return;
+            const a = document.activeElement;
+            if (a && sheet.contains(a) && a.tagName === 'INPUT') a.blur();
+            else sheet.classList.remove('typing');
+          };
+          vv.addEventListener('resize', onVV);
+        }
         /* hold delete to clear */
         const del = sheet.querySelector('.key-del');
         let holdTimer = null;

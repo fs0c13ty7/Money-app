@@ -15,7 +15,7 @@
       .trim();
 
   const KEYWORDS = {
-    food: 'coffee lunch dinner breakfast brunch cafe café restaurant pizza takeaway tea pub bar drinks snack snacks food groceries grocery tesco sainsbury sainsburys asda aldi lidl morrisons waitrose coop co op greggs mcdonalds mcdonald kfc nandos starbucks costa pret deliveroo justeat ubereats burger chippy',
+    food: 'coffee lunch dinner breakfast brunch cafe café restaurant pizza takeaway tea pub bar drinks snack snacks food groceries grocery tesco sainsbury sainsburys asda aldi lidl morrisons waitrose coop co op greggs mcdonalds mcdonald kfc nandos starbucks costa pret deliveroo justeat ubereats burger chippy fish chips sushi ramen curry kebab sandwich noodles bakery chicken wings steak tacos donut donuts cake icecream milkshake subway wagamama nando toby harvester wetherspoons spoons',
     transport: 'uber bolt taxi cab bus train rail tfl fuel petrol diesel parking toll trainline metro tram',
     bills: 'broadband electric electricity gas water council tax phone mobile rent ee vodafone o2 three bt sky virgin licence wifi energy octopus',
     shopping: 'amazon ebay clothes shoes argos primark ikea asos shopping',
@@ -39,6 +39,48 @@
   Object.keys(KEYWORDS).forEach((cat) => KEYWORDS[cat].split(' ').forEach((w) => (KW[w] = cat)));
 
   /* Best category for a name: your own history first, then common keywords */
+  /* word -> how often each category was used for entries containing it */
+  const STOP = new Set('the and for with from to of at in on a an my me our your new old mum dad my x2 x3 pay payment card online shop store ltd uk co com www'.split(' '));
+  const stem = (w) => (w.length > 4 && /s$/.test(w) && !/ss$/.test(w) ? w.slice(0, -1) : w);
+  const wordsOf = (n) => n.split(' ').map(stem).filter((w) => w.length >= 3 && !STOP.has(w) && !/^\d/.test(w));
+  let wordIdx = { rev: -1, n: -1, map: null };
+  const wordIndex = () => {
+    if (wordIdx.rev === S.rev && wordIdx.n === S.tx.length && wordIdx.map) return wordIdx.map;
+    const map = new Map();
+    S.tx.forEach((t) => {
+      if (!t.name || !S.isStat(t)) return;
+      new Set(wordsOf(X.norm(t.name))).forEach((w) => {
+        const key = t.type + ':' + w;
+        let m = map.get(key);
+        if (!m) map.set(key, (m = { total: 0, cats: {} }));
+        m.total += 1;
+        m.cats[t.categoryId] = (m.cats[t.categoryId] || 0) + 1;
+      });
+    });
+    wordIdx = { rev: S.rev, n: S.tx.length, map: map };
+    return map;
+  };
+  const fromWords = (n, type) => {
+    const idx = wordIndex();
+    const score = {};
+    let seen = 0;
+    wordsOf(n).forEach((w) => {
+      const m = idx.get(type + ':' + w);
+      if (!m || m.total < 2) return; /* a word seen once is too thin to learn from */
+      seen += 1;
+      /* words that always meant the same category count most; very common words count less */
+      const weight = 1 / Math.log2(2 + Math.min(m.total, 50) / 10);
+      Object.keys(m.cats).forEach((c) => (score[c] = (score[c] || 0) + (m.cats[c] / m.total) * weight));
+    });
+    if (!seen) return null;
+    const ranked = Object.keys(score).sort((a, b) => score[b] - score[a]);
+    const top = ranked[0];
+    const total = ranked.reduce((a, c) => a + score[c], 0);
+    if (!top || score[top] / total < 0.6) return null;
+    const c = S.cats.find((x) => x.id === top);
+    return c && c.type === type ? top : null;
+  };
+
   X.suggestCategory = (name, type) => {
     const n = X.norm(name);
     if (!n) return null;
@@ -48,6 +90,9 @@
     });
     const best = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
     if (best && S.cats.find((c) => c.id === best)) return best;
+    /* learn from the words in your own history: a word you've always filed under one category points to it */
+    const learned = fromWords(n, type);
+    if (learned) return learned;
     const words = n.split(' ');
     for (let i = 0; i < words.length; i++) {
       const id = KW[words[i]];

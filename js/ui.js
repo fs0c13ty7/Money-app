@@ -199,7 +199,7 @@
   UI.openSheet = (opts) => {
     const wrap = document.createElement('div');
     wrap.className = 'sheet-wrap';
-    wrap.innerHTML = `<div class="scrim" data-act="sheet-close"></div><section class="sheet${opts.full ? ' full' : ''}${opts.cls ? ' ' + opts.cls : ''}" role="dialog" aria-modal="true" aria-label="${U.esc(opts.label || 'Panel')}"><div class="grab" aria-hidden="true"></div><div class="sheet-body"></div></section>`;
+    wrap.innerHTML = `<div class="scrim" data-act="sheet-close"></div><section class="sheet${opts.full ? ' full' : ''}${opts.cls ? ' ' + opts.cls : ''}" role="dialog" aria-modal="true" aria-label="${U.esc(opts.label || 'Panel')}"><div class="grab-zone" aria-hidden="true"><div class="grab"></div></div><div class="sheet-body"></div></section>`;
     const body = wrap.querySelector('.sheet-body');
     body.innerHTML = opts.render();
     $('#layer').appendChild(wrap);
@@ -252,6 +252,97 @@
       history.back();
     });
   UI.topSheet = () => UI.sheets[UI.sheets.length - 1];
+
+  /* Pull a sheet down to close it. Drag from the handle or the sheet's header: it follows your finger,
+     and letting go past a quarter of the way (or with a quick flick) closes it, taking you back to the
+     page you were on. A short pull springs back. */
+  (function () {
+    const ZONES = '.grab-zone, .qa-head, .qa-amount, .sheet-title, .txa-head';
+    let d = null;
+    let swallowUntil = 0;
+    document.addEventListener(
+      'pointerdown',
+      (e) => {
+        d = null;
+        const top = UI.topSheet();
+        if (!top || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        const sheet = top.el.querySelector('.sheet');
+        if (!sheet || !sheet.contains(e.target) || !e.target.closest(ZONES)) return;
+        const body = sheet.querySelector('.sheet-body');
+        if (body && body.contains(e.target) && body.scrollTop > 2) return; /* scrolled down: let it scroll */
+        d = { id: e.pointerId, x: e.clientX, y: e.clientY, off: 0, lock: null, sheet: sheet, wrap: top.el, entry: top, last: [e.clientY, e.timeStamp], v: 0 };
+      },
+      true
+    );
+    document.addEventListener(
+      'pointermove',
+      (e) => {
+        if (!d || e.pointerId !== d.id) return;
+        const dx = e.clientX - d.x;
+        const dy = e.clientY - d.y;
+        if (d.lock === null) {
+          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+          d.lock = dy > 0 && Math.abs(dy) > Math.abs(dx) ? 'y' : 'no';
+          if (d.lock !== 'y') return;
+          d.sheet.style.transition = 'none';
+          d.scrim = d.wrap.querySelector('.scrim');
+          if (d.scrim) d.scrim.style.transition = 'none';
+          const a = document.activeElement;
+          if (a && d.sheet.contains(a) && a.blur && a.tagName === 'INPUT') a.blur();
+        }
+        if (d.lock !== 'y') return;
+        d.off = Math.max(0, dy);
+        d.v = (e.clientY - d.last[0]) / Math.max(1, e.timeStamp - d.last[1]);
+        d.last = [e.clientY, e.timeStamp];
+        d.sheet.style.transform = 'translateY(' + d.off + 'px)';
+        if (d.scrim) d.scrim.style.opacity = String(Math.max(0, 1 - d.off / (d.sheet.offsetHeight || 1)));
+      },
+      { passive: true }
+    );
+    const end = (e) => {
+      if (!d || e.pointerId !== d.id) return;
+      const s = d;
+      d = null;
+      if (s.lock !== 'y') return;
+      swallowUntil = Date.now() + 400;
+      const h = s.sheet.offsetHeight || 1;
+      const go = e.type !== 'pointercancel' && (s.off > h * 0.25 || (s.v > 0.5 && s.off > 24));
+      if (go && UI.topSheet() === s.entry) {
+        s.sheet.style.transition = 'transform .22s cubic-bezier(.4,0,1,1)';
+        s.sheet.style.transform = 'translateY(' + (h + 24) + 'px)';
+        if (s.scrim) {
+          s.scrim.style.transition = 'opacity .22s';
+          s.scrim.style.opacity = '0';
+        }
+        U.vibrate(6);
+        UI.closeSheet();
+        return;
+      }
+      s.sheet.style.transition = 'transform .32s var(--ease)';
+      s.sheet.style.transform = '';
+      if (s.scrim) {
+        s.scrim.style.transition = 'opacity .32s';
+        s.scrim.style.opacity = '';
+      }
+      setTimeout(() => {
+        s.sheet.style.transition = '';
+        if (s.scrim) s.scrim.style.transition = '';
+      }, 340);
+    };
+    document.addEventListener('pointerup', end, true);
+    document.addEventListener('pointercancel', end, true);
+    /* the lift at the end of a pull isn't a tap on whatever is under the finger */
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (Date.now() > swallowUntil) return;
+        swallowUntil = 0;
+        e.stopPropagation();
+        e.preventDefault();
+      },
+      true
+    );
+  })();
 
   /* ---------- Toast ---------- */
   let toastTimer = null;
