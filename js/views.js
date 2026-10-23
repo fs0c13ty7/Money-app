@@ -517,20 +517,17 @@
       const amt = (t.amount / 100).toFixed(2);
       return (t.name || '').toLowerCase().indexOf(q) >= 0 || (t.note || '').toLowerCase().indexOf(q) >= 0 || c.indexOf(q) >= 0 || (qMoney && /^[\d.]+$/.test(qMoney) && amt.indexOf(qMoney) === 0);
     });
-    /* best matches first: name starts with it, then a word in the name does, then anywhere; newest first within each */
-    const esc_re = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const wordStart = new RegExp('(^|[^a-z0-9])' + esc_re, 'i');
-    const rank = (t) => {
-      const n = (t.name || S.cat(t.categoryId).name).toLowerCase();
-      if (n.indexOf(q) === 0) return 0;
-      if (wordStart.test(n)) return 1;
-      if (n.indexOf(q) >= 0) return 2;
-      return 3;
-    };
-    res.sort((a, b) => rank(a) - rank(b));
+    /* newest first, income and expenses together (S.tx is already sorted by date) */
     if (!res.length) return UI.empty('search', 'No matches', 'Try fewer letters, or check the Expenses / Income filter.');
-    const total = res.reduce((a, t) => a + S.signed(t), 0);
-    let h = `<div class="res-head"><span>${res.length} result${res.length === 1 ? '' : 's'}</span><span>${U.fmt(total, { plus: true })}</span></div><section class="card list-card">`;
+    let inc = 0;
+    let exp = 0;
+    res.forEach((t) => (t.type === 'income' ? (inc += t.amount) : (exp += t.amount)));
+    const line = (label, val, cls) => `<div class="res-line${cls ? ' ' + cls : ''}"><span>${label}</span><span>${val}</span></div>`;
+    let h = `<div class="res-head"><span>${res.length} result${res.length === 1 ? '' : 's'}</span></div><section class="card res-sum">`;
+    if (type !== 'expense') h += line('Income', U.fmt(inc, { plus: inc > 0 }), 'in');
+    if (type !== 'income') h += line('Expenses', U.fmt(-exp), '');
+    if (type === 'all') h += line('Net', U.fmt(inc - exp, { plus: true }), 'net');
+    h += `</section><section class="card list-card">`;
     h += res
       .slice(0, 150)
       .map((t) => {
