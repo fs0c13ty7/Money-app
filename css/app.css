@@ -629,3 +629,20 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
 
 /* future-dated entries */
 .hero-pending { margin-top: 2px; font-size: 13px; font-weight: 650; color: rgba(255, 255, 255, .78); }
+
+/* Google Drive backup */
+.drive-card { display: flex; flex-direction: column; gap: 12px; }
+.drive-head { display: flex; align-items: flex-start; gap: 12px; }
+.drive-head .card-title { margin: 0 0 2px; }
+.drive-head p { margin: 0; }
+.drive-form .field-inline { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.input.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+.howto { border-radius: 16px; background: var(--surface-2); padding: 12px 14px; font-size: 13.5px; line-height: 1.5; }
+.howto summary { cursor: pointer; font-weight: 750; color: var(--accent-ink); }
+.howto ol { margin: 10px 0 6px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.howto code { display: inline-block; margin-top: 2px; padding: 2px 6px; border-radius: 6px; background: var(--surface); font-size: 12.5px; word-break: break-all; user-select: all; -webkit-user-select: all; }
+.drive-files { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.drive-file { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 14px; background: none; color: var(--ink); font: inherit; text-align: left; }
+.drive-file.on { border-color: var(--accent-ink); background: var(--accent-soft); }
+.drive-file .radio { width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid var(--line); }
+.drive-file.on .radio { border: 6px solid var(--accent-ink); }

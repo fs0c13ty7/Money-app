@@ -203,6 +203,7 @@
 
     const save = async () => {
       if (st.saving) return;
+      if (MT.cloud) MT.cloud.prime();
       if (!U.keypadPence(st.amt) && st.parsed && st.parsed.amount) applyParse();
       else if (st.parsed && st.parsed.name && st.parsed.name !== st.name) {
         /* amount came from the keypad: still tidy the name ("coffee yesterday" is saved as "Coffee") */
@@ -442,7 +443,10 @@
   A['qa-name-pick'] = (el) => M.cur && M.cur.namePick(Number(el.getAttribute('data-i')));
   A['qa-keypad'] = () => M.cur && M.cur.keypad();
   A['qa-save'] = () => M.cur && M.cur.save();
-  A['qa-delete'] = () => M.cur && M.cur.del();
+  A['qa-delete'] = () => {
+    if (MT.cloud) MT.cloud.prime();
+    return M.cur && M.cur.del();
+  };
 
   /* ================= RECURRING ================= */
   /* existing: a rule to edit. prefill: values for a new rule (e.g. a suggestion from your history) */
@@ -679,7 +683,7 @@
       label: 'Welcome',
       cls: 'welcome-sheet',
       render: () =>
-        `<div class="form"><span class="tile tile-xl c-blue">${ic('tally', 30, 2)}</span><h2 class="sheet-title">Welcome to Tally</h2><p class="sheet-text">Everything you log stays on this phone. To start, enter what’s in your account right now. You can bring in your Money Lover history later.</p><label class="field-block" for="ob-bal"><span class="lbl">Current balance</span><span class="money-input"><span>£</span><input id="ob-bal" inputmode="decimal" autocomplete="off" placeholder="0.00"></span></label><label class="field-inline" for="ob-neg"><input type="checkbox" id="ob-neg"> My account is overdrawn (minus)</label><button type="button" class="btn btn-primary btn-lg press" data-act="ob-start">Start tracking</button><label class="btn btn-soft press" for="restore-file">${ic('history', 18, 2)} Restore from a backup file<input type="file" id="restore-file" accept="application/json,.json" class="sr"></label><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="ob-skip">Skip for now</button><button type="button" class="btn btn-text press" data-act="load-examples">${ic('spark', 16, 2)} Explore with example data first</button></div>`,
+        `<div class="form"><span class="tile tile-xl c-blue">${ic('tally', 30, 2)}</span><h2 class="sheet-title">Welcome to Tally</h2><p class="sheet-text">Everything you log stays on this phone. To start, enter what’s in your account right now. You can bring in your Money Lover history later.</p><label class="field-block" for="ob-bal"><span class="lbl">Current balance</span><span class="money-input"><span>£</span><input id="ob-bal" inputmode="decimal" autocomplete="off" placeholder="0.00"></span></label><label class="field-inline" for="ob-neg"><input type="checkbox" id="ob-neg"> My account is overdrawn (minus)</label><button type="button" class="btn btn-primary btn-lg press" data-act="ob-start">Start tracking</button><label class="btn btn-soft press" for="restore-file">${ic('history', 18, 2)} Restore from a backup file<input type="file" id="restore-file" accept="application/json,.json" class="sr"></label><button type="button" class="btn btn-soft press" data-act="drive-restore-new">${ic('cloud', 18, 2)} Restore from Google Drive</button><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="ob-skip">Skip for now</button><button type="button" class="btn btn-text press" data-act="load-examples">${ic('spark', 16, 2)} Explore with example data first</button></div>`,
       after: (el) => {
         UI.bindImport(el);
         UI.bindRestore(el);
@@ -847,7 +851,7 @@
       label: 'Your entries are missing',
       cls: 'welcome-sheet',
       render: () =>
-        `<div class="form"><span class="tile tile-xl c-amber">${ic('alert', 30, 1.8)}</span><h2 class="sheet-title">Your entries are missing</h2><p class="sheet-text">This app had ${Number(mark.n).toLocaleString('en-GB')} transactions on this phone${mark.at ? ', last seen ' + esc(U.ago(mark.at)) : ''}, but its storage has come back empty. App updates never delete your data, so something on the phone cleared it.</p><p class="sheet-text">Restore your latest backup file, or import from Money Lover again.</p><label class="btn btn-primary btn-lg press" for="restore-file">${ic('history', 18, 2)} Restore from a backup file<input type="file" id="restore-file" accept="application/json,.json" class="sr"></label><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="missing-fresh">Start fresh instead</button></div>`,
+        `<div class="form"><span class="tile tile-xl c-amber">${ic('alert', 30, 1.8)}</span><h2 class="sheet-title">Your entries are missing</h2><p class="sheet-text">This app had ${Number(mark.n).toLocaleString('en-GB')} transactions on this phone${mark.at ? ', last seen ' + esc(U.ago(mark.at)) : ''}, but its storage has come back empty. App updates never delete your data, so something on the phone cleared it.</p><p class="sheet-text">Restore your latest backup file, or import from Money Lover again.</p><label class="btn btn-primary btn-lg press" for="restore-file">${ic('history', 18, 2)} Restore from a backup file<input type="file" id="restore-file" accept="application/json,.json" class="sr"></label><button type="button" class="btn btn-soft press" data-act="drive-restore-new">${ic('cloud', 18, 2)} Restore from Google Drive</button><label class="btn btn-soft press" for="ml-file">${ic('upload', 18, 2)} Import from Money Lover<input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label><button type="button" class="btn btn-text press" data-act="missing-fresh">Start fresh instead</button></div>`,
       after: (el) => {
         UI.bindRestore(el);
         UI.bindImport(el);
@@ -863,7 +867,7 @@
   };
 
   /* ================= RESTORE PREVIEW ================= */
-  M.restorePreview = (v, source) => {
+  M.restorePreview = (v, source, after) => {
     const s = v.summary;
     UI.openSheet({
       label: 'Restore preview',
@@ -871,6 +875,7 @@
         `<div class="form"><h2 class="sheet-title">Restore this backup?</h2><p class="sheet-text">${esc(source)}</p><div class="kv"><span>Transactions</span><b>${s.tx}</b><span>Covering</span><b>${s.from ? U.fmtShortDate(s.from) + ' ' + s.from.slice(0, 4) + ' – ' + U.fmtShortDate(s.to) + ' ' + s.to.slice(0, 4) : '—'}</b><span>Balance</span><b>${U.fmt(s.balance)}</b><span>Categories</span><b>${s.cats}</b><span>Recurring</span><b>${s.rec}</b></div>${s.skipped ? `<p class="note-box warn">${s.skipped} damaged entr${s.skipped === 1 ? 'y' : 'ies'} will be skipped.</p>` : ''}<p class="note-box">This replaces what’s in the app now (${S.tx.length} transactions, balance ${U.fmt(S.balance())}). A snapshot of your current data is saved first, so you can switch back from Backup.</p><div class="btn-row"><button type="button" class="btn" data-act="sheet-close">Cancel</button><button type="button" class="btn btn-danger" data-act="restore-go">Replace data</button></div></div>`
     });
     UI._restore = v;
+    UI._restoreAfter = after || null;
   };
   A['restore-go'] = async (el) => {
     const v = UI._restore;
@@ -879,6 +884,13 @@
     try {
       await S.replaceAll(v.data);
       UI._restore = null;
+      if (UI._restoreAfter) {
+        const fn = UI._restoreAfter;
+        UI._restoreAfter = null;
+        try {
+          await fn();
+        } catch (e) {}
+      }
       UI.applyTheme(S.settings().theme);
       await UI.closeSheet();
       UI.toast('Restored ' + v.summary.tx + ' transactions');
@@ -956,7 +968,10 @@
   A['txa-dup'] = () => M.txa && M.txa.dup();
   A['txa-edit'] = () => M.txa && M.txa.edit();
   A['txa-excl'] = () => M.txa && M.txa.excl();
-  A['txa-del'] = () => M.txa && M.txa.del();
+  A['txa-del'] = () => {
+    if (MT.cloud) MT.cloud.prime();
+    return M.txa && M.txa.del();
+  };
 
   (function () {
     const HOLD = 480;

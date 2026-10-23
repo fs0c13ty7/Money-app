@@ -27,8 +27,16 @@
       if (MT.db.memory) h += `<div class="banner warn">${ic('alert', 18, 2)}<p><b>Preview mode.</b> Storage isn’t available here, so anything you add disappears when you close this page.</p></div>`;
       if (S.hasExamples()) h += `<div class="banner">${ic('spark', 18, 2)}<p>You’re looking at <b>example data</b>. Remove it before you start logging for real.</p><button class="btn btn-sm btn-soft press" data-act="clear-examples">Remove</button></div>`;
       const last = S.meta.lastFileBackup;
-      const unprotected = !MT.db.memory && !MT.PREVIEW && UI.persisted === false && S.tx.some((t) => !t.example);
-      if (unprotected) {
+      const driveOn = MT.cloud && MT.cloud.enabled();
+      const driveBanner = driveOn ? UI.cloudBanner() : '';
+      /* Drive backup working recently = your data is off the phone, so the older warnings aren't needed */
+      const driveGood = driveOn && UI.cloudHealthy(3 * 86400000);
+      const unprotected = !driveGood && !MT.db.memory && !MT.PREVIEW && UI.persisted === false && S.tx.some((t) => !t.example);
+      if (driveBanner) {
+        h += driveBanner;
+      } else if (driveGood) {
+        /* nothing to nag about */
+      } else if (unprotected) {
         h += `<div class="banner warn">${ic('alert', 18, 2)}<p><b>Storage not protected.</b> Your phone could clear this app’s data to free up space. ${last ? 'Last backup file: ' + U.ago(last) + '.' : 'Save a backup file now.'}</p><button class="btn btn-sm btn-primary press" data-act="backup-now">Back up</button></div>`;
       } else if (!MT.db.memory && S.tx.some((t) => !t.example) && (!last || Date.now() - last > 3 * 86400000)) {
         h += `<div class="banner">${ic('shield', 18, 2)}<p>${last ? 'Your last backup file was ' + U.ago(last) + '.' : 'You haven’t saved a backup file yet.'} Save one so nothing can be lost.</p><button class="btn btn-sm btn-primary press" data-act="backup-now">Back up</button></div>`;
@@ -691,7 +699,10 @@
       h += `<h2 class="section-label">Appearance</h2><section class="card">${UI.seg('Theme', [{ id: 'system', label: 'System', icon: 'system' }, { id: 'light', label: 'Light', icon: 'sun' }, { id: 'dark', label: 'Dark', icon: 'moon' }], st.theme, 'theme')}<p class="muted sm pad-t" id="theme-note">${themeNote(st.theme)}</p>`;
       h += `<div class="set-row bordered"><span id="hide-lbl" class="set-text"><b>Hide balance when the app opens</b><span>Tap the eye on Home to show it</span></span>${UI.switch('sw-hide', st.hideOnOpen, 'set-hide', 'hide-lbl')}</div></section>`;
       h += `<h2 class="section-label">Your data</h2><section class="card list-card">`;
-      h += navRow('backup', 'shield', 'green', 'Backup & restore', last ? 'Last backup file ' + U.ago(last) : 'No backup file saved yet', !last || Date.now() - last > 3 * 86400000 ? 'warn' : 'good');
+      if (MT.cloud && MT.cloud.enabled()) {
+        const ck = MT.cloud.state().kind;
+        h += navRow('backup', 'cloud', 'green', 'Backup & restore', 'Google Drive: ' + UI.cloudLine(), ck === 'ok' || ck === 'pending' || ck === 'uploading' ? 'good' : 'warn');
+      } else h += navRow('backup', 'shield', 'green', 'Backup & restore', last ? 'Last backup file ' + U.ago(last) : 'No backup file saved yet', !last || Date.now() - last > 3 * 86400000 ? 'warn' : 'good');
       h += navRow('adjust', 'sliders', 'slate', 'Adjust balance', 'Match the app to your bank');
       h += `<label class="tx-row press" for="ml-file"><span class="tile c-orange">${ic('upload', 20)}</span><span class="tx-main"><span class="tx-title">Import from Money Lover</span><span class="tx-sub">Pick the CSV you exported. You’ll see a preview first</span></span><span class="chev">${ic('chevR', 18, 2)}</span><input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label>`;
       h += `</section>`;
@@ -1042,15 +1053,22 @@
     render() {
       const last = S.meta.lastFileBackup;
       const fresh = last && Date.now() - last < 3 * 86400000;
+      /* with Drive backup working, a backup file is an optional extra, not a warning */
+      const driveGood = MT.cloud && UI.cloudHealthy && UI.cloudHealthy(7 * 86400000);
       let h = UI.subHeader('Backup & restore') + `<div class="stack">`;
-      h += `<section class="card center"><span class="tile tile-xl c-${fresh ? 'green' : 'amber'}">${ic(fresh ? 'shield' : 'alert', 30, 1.8)}</span><h2 class="card-title">${fresh ? 'Your data is backed up' : last ? 'Time for a fresh backup' : 'Save your first backup'}</h2><p class="muted sm">${last ? 'Last backup file: ' + U.ago(last) : 'No backup file yet'}</p><button class="btn btn-primary btn-lg press wide" data-act="backup-now">${ic('download', 18, 2)} Save backup file</button>${navigator.canShare ? `<button class="btn btn-soft press wide" data-act="backup-share">${ic('share', 18, 2)} Send backup to another app</button>` : ''}</section>`;
+      h += UI.cloudCard();
+      h += driveGood
+        ? `<section class="card center"><span class="tile tile-xl c-blue">${ic('file', 30, 1.8)}</span><h2 class="card-title">Backup file (optional)</h2><p class="muted sm">${last ? 'Last backup file: ' + U.ago(last) : 'An extra copy you keep yourself, if you like'}</p><button class="btn btn-soft btn-lg press wide" data-act="backup-now">${ic('download', 18, 2)} Save backup file</button>${navigator.canShare ? `<button class="btn btn-soft press wide" data-act="backup-share">${ic('share', 18, 2)} Send backup to another app</button>` : ''}</section>`
+        : `<section class="card center"><span class="tile tile-xl c-${fresh ? 'green' : 'amber'}">${ic(fresh ? 'shield' : 'alert', 30, 1.8)}</span><h2 class="card-title">${fresh ? 'Your data is backed up' : last ? 'Time for a fresh backup' : 'Save your first backup'}</h2><p class="muted sm">${last ? 'Last backup file: ' + U.ago(last) : 'No backup file yet'}</p><button class="btn btn-primary btn-lg press wide" data-act="backup-now">${ic('download', 18, 2)} Save backup file</button>${navigator.canShare ? `<button class="btn btn-soft press wide" data-act="backup-share">${ic('share', 18, 2)} Send backup to another app</button>` : ''}</section>`;
       h += `<h2 class="section-label">How your data is protected</h2><section class="card list-card">`;
       h += infoRow('phone', 'Saved the moment you tap Save', 'Every entry is written to this phone’s storage before the app says “Saved”.');
       h += infoRow('history', 'Daily snapshots inside the app', 'A copy is taken each day you use the app. The last 30 are kept below.');
+      h += infoRow('cloud', 'Google Drive, if you turn it on', 'An encrypted copy goes to your own Drive after every change, so losing or resetting this phone doesn’t lose your data.');
       h += infoRow('file', 'Backup files you keep', 'A dated file saved to your phone’s Downloads folder, separate from the app. Keep a copy somewhere else too if you can.');
       h += `</section>`;
       h += `<h2 class="section-label">Restore or export</h2><section class="card list-card">`;
       h += `<label class="tx-row press" for="restore-file"><span class="tile c-blue">${ic('upload', 20)}</span><span class="tx-main"><span class="tx-title">Restore from a backup file</span><span class="tx-sub">You’ll see a preview before anything changes</span></span><span class="chev">${ic('chevR', 18, 2)}</span><input type="file" id="restore-file" accept="application/json,.json" class="sr"></label>`;
+      if (MT.cloud && MT.cloud.supported()) h += `<button class="tx-row press" data-act="drive-restore"><span class="tile c-blue">${ic('cloud', 20)}</span><span class="tx-main"><span class="tx-title">Restore from Google Drive</span><span class="tx-sub">Needs your Client ID and passphrase. You’ll see a preview first</span></span><span class="chev">${ic('chevR', 18, 2)}</span></button>`;
       h += `<label class="tx-row press" for="ml-file"><span class="tile c-orange">${ic('upload', 20)}</span><span class="tx-main"><span class="tx-title">Import from Money Lover</span><span class="tx-sub">Pick the CSV you exported. You’ll see a preview first</span></span><span class="chev">${ic('chevR', 18, 2)}</span><input type="file" id="ml-file" accept=".csv,text/csv,text/comma-separated-values" class="sr"></label>`;
       h += `<button class="tx-row press" data-act="export-csv"><span class="tile c-teal">${ic('file', 20)}</span><span class="tx-main"><span class="tx-title">Export as spreadsheet (CSV)</span><span class="tx-sub">Opens in Google Sheets or Excel</span></span><span class="chev">${ic('chevR', 18, 2)}</span></button>`;
       h += `</section><h2 class="section-label">Snapshots on this phone</h2><section class="card list-card" id="snap-list"><p class="muted pad">Loading…</p></section>`;

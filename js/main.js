@@ -6,7 +6,7 @@
   const S = MT.store;
   const UI = MT.ui;
   const A = UI.actions;
-  MT.VERSION = '1.8.3';
+  MT.VERSION = '1.9.0';
 
   /* ---------- Example data: flagged so it can be removed in one tap ---------- */
   MT.examples = () => {
@@ -101,6 +101,13 @@
       storageError(MT.db.error);
       return;
     }
+    /* Drive backup: pick up a sign-in handed back by Google, start watching for changes */
+    let driveToken = false;
+    try {
+      driveToken = MT.cloud.init();
+    } catch (e) {
+      console.error(e);
+    }
     const MARK = 'mt-had-data';
     let mark = null;
     try {
@@ -138,7 +145,9 @@
     } catch (e) {
       params = new URLSearchParams('');
     }
-    if (params.get('add')) {
+    if (UI.resumeDrive && UI.resumeDrive(driveToken)) {
+      /* came back from a full-page Google sign-in: carry on where you were */
+    } else if (params.get('add')) {
       MT.sheets.txForm(null, { type: params.get('add') === 'income' ? 'income' : 'expense' });
     } else if (params.get('view') === 'search') {
       UI.go('search');
