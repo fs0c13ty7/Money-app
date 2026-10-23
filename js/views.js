@@ -35,7 +35,7 @@
       }
       /* balance */
       const hidden = UI.hideBalance;
-      h += `<section class="hero"><div class="hero-top"><span class="hero-label">Total balance</span><button class="hero-eye press" data-act="toggle-balance" aria-pressed="${hidden}" aria-label="${hidden ? 'Show balance' : 'Hide balance'}">${ic(hidden ? 'eyeOff' : 'eye', 20, 1.9)}</button></div><div class="hero-amt${hidden ? ' masked' : ''}" aria-live="polite">${hidden ? '£ ••••••' : U.fmt(S.balance())}</div><div class="hero-bottom"><span class="hero-sub">${ic('wallet', 16, 1.9)} ${S.tx.length ? S.tx.length.toLocaleString('en-GB') + ' transaction' + (S.tx.length === 1 ? '' : 's') : 'No transactions yet'}</span><button class="hero-btn press" data-act="go" data-to="adjust">${ic('sliders', 16, 1.9)} Adjust</button></div></section>`;
+      h += `<section class="hero"><div class="hero-top"><span class="hero-label">Total balance</span><button class="hero-eye press" data-act="toggle-balance" aria-pressed="${hidden}" aria-label="${hidden ? 'Show balance' : 'Hide balance'}">${ic(hidden ? 'eyeOff' : 'eye', 20, 1.9)}</button></div><div class="hero-amt${hidden ? ' masked' : ''}" aria-live="polite">${hidden ? '£ ••••••' : U.fmt(S.balance())}</div>${S.future().length ? `<div class="hero-pending">${esc(UI.pendingText(hidden))}</div>` : ''}<div class="hero-bottom"><span class="hero-sub">${ic('wallet', 16, 1.9)} ${S.tx.length ? S.tx.length.toLocaleString('en-GB') + ' transaction' + (S.tx.length === 1 ? '' : 's') : 'No transactions yet'}</span><button class="hero-btn press" data-act="go" data-to="adjust">${ic('sliders', 16, 1.9)} Adjust</button></div></section>`;
       if (!S.tx.length) {
         h += `<section class="card welcome"><h2 class="card-title">Log your first expense</h2><p class="muted">Tap the + button any time. Type “coffee 3.40” in the description and the amount, date and category fill themselves in.</p><button class="btn btn-primary press" data-act="quick-add">${ic('plus', 18, 2.2)} Add a transaction</button></section>`;
       }
@@ -63,11 +63,20 @@
       } else h += `<p class="muted pad-t">Nothing spent ${p === 'week' ? 'this week' : 'this month'} yet.</p>`;
       h += `</section>`;
       /* coming up */
-      const up = S.upcoming(10).slice(0, 3);
+      const fut = S.future();
+      const up = fut
+        .map((t) => ({ tx: t, date: t.date }))
+        .concat(S.upcoming(10))
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+        .slice(0, fut.length ? Math.max(3, Math.min(fut.length, 5)) : 3);
       if (up.length) {
         h += `<section class="card list-card"><div class="card-head"><h2 class="card-title">Coming up</h2><button class="link press" data-act="go" data-to="recurring">All recurring</button></div>`;
         h += up
           .map((u) => {
+            if (u.tx) {
+              const ct = S.cat(u.tx.categoryId);
+              return `<button class="tx-row press" data-act="edit-tx" data-id="${esc(u.tx.id)}">${UI.tile(ct)}<span class="tx-main"><span class="tx-title">${esc(u.tx.name || ct.name)}</span><span class="tx-sub">${esc(U.fmtDay(u.date))} · not in your balance yet</span></span><span class="${UI.amountClass(u.tx)}">${U.fmtSigned(u.tx)}</span></button>`;
+            }
             const c = S.cat(u.rule.categoryId);
             return `<button class="tx-row press" data-act="edit-rec" data-id="${esc(u.rule.id)}">${UI.tile(c)}<span class="tx-main"><span class="tx-title">${esc(u.rule.name)}</span><span class="tx-sub">${esc(U.fmtDay(u.date))} · logged automatically</span></span><span class="${u.rule.type === 'income' ? 'amt in' : 'amt'}">${u.rule.type === 'income' ? '+' : '−'}${U.fmt(u.rule.amount)}</span></button>`;
           })
@@ -77,7 +86,7 @@
       /* recent */
       if (S.tx.length) {
         h += `<section class="card list-card"><div class="card-head"><h2 class="card-title">Recent</h2><button class="link press" data-act="see-all">See all</button></div>`;
-        h += S.tx.slice(0, 5).map((t) => UI.txRow(t, { showDate: true })).join('');
+        h += S.tx.filter((t) => t.date <= today).slice(0, 5).map((t) => UI.txRow(t, { showDate: true })).join('');
         h += `</section>`;
       }
       h += `</div>`;
@@ -106,6 +115,12 @@
     return `<button class="cat-bar press" data-act="cat-activity" data-cat="${esc(c.cat.id)}" data-from="${from}" data-to="${to}">${UI.tile(c.cat)}<span class="cb-main"><span class="cb-top"><span class="cb-name">${esc(c.cat.name)}</span><span class="cb-amt">${U.fmt(c.total)}</span></span><span class="cb-track"><span class="cb-fill" style="width:${w}%"></span></span></span><span class="cb-pct">${pct}%</span></button>`;
   }
 
+  UI.pendingText = (hidden) => {
+    const f = S.future();
+    if (!f.length) return '';
+    const net = f.reduce((x, t) => x + S.signed(t), 0);
+    return hidden ? 'Upcoming entries not included' : U.fmt(net, { plus: true }) + ' upcoming, not included until ' + (f.length === 1 ? U.fmtShortDate(f[0].date) : 'their dates');
+  };
   A['toggle-balance'] = () => {
     UI.hideBalance = !UI.hideBalance;
     const hero = document.querySelector('.hero');
@@ -117,6 +132,8 @@
       amt.textContent = UI.hideBalance ? '£ ••••••' : U.fmt(S.balance());
       amt.classList.toggle('masked', UI.hideBalance);
       amt.classList.remove('swap');
+      const pend = hero.querySelector('.hero-pending');
+      if (pend) pend.textContent = UI.pendingText(UI.hideBalance);
     }, 140);
     btn.innerHTML = ic(UI.hideBalance ? 'eyeOff' : 'eye', 20, 1.9);
     btn.setAttribute('aria-pressed', String(UI.hideBalance));
@@ -179,17 +196,20 @@
   V.activity = {
     render() {
       const st = UI.act;
-      const r = rangeOf(st.period, st.anchor);
       const today = U.today();
-      const canNext = r.to < today;
-      const away = !(r.from <= today && today <= r.to);
+      /* past the current period is "Upcoming": entries you've dated after today */
+      const fut = !!st.future;
+      const r = fut ? { from: U.addDays(today, 1), to: '9999-12-31', label: 'Upcoming', sub: 'Not in your balance yet' } : rangeOf(st.period, st.anchor);
+      const listTo = !fut && r.to > today ? today : r.to;
+      const canNext = UI.actCanNext();
+      const away = fut || !(r.from <= today && today <= r.to);
       let h = `<header class="appbar topbar"><h1 class="h1">Activity</h1><div class="bar-actions">${away ? UI.nowPill('activity', 'act-now', { day: 'Today', week: 'This week', month: 'This month' }[st.period]) : UI.noPill('activity')}<button class="icon-btn outline press" data-act="go" data-to="search" aria-label="Search transactions">${ic('search', 20, 1.9)}</button></div></header><div class="stack">`;
       h += UI.seg('Period', [{ id: 'day', label: 'Day' }, { id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }], st.period, 'act-period');
       h += `<div class="swipe-area${UI.actEnter ? ' ' + UI.actEnter : ''}">`;
       UI.actEnter = null;
-      h += `<div class="range-nav"><button class="icon-btn press" data-lift data-act="act-step" data-dir="-1" aria-label="Previous">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-lift data-act="pick-period" aria-label="Choose a ${st.period}: ${esc(r.label)}">${UI.rangeText(r.label, r.sub)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-lift data-act="act-step" data-dir="1" aria-label="Next"${canNext ? '' : ' disabled'}>${ic('chevR', 20, 2)}</button></div>`;
-      const all = S.range(r.from, r.to);
-      const tot = S.totals(r.from, r.to);
+      h += `<div class="range-nav"><button class="icon-btn press" data-lift data-act="act-step" data-dir="-1" aria-label="Previous">${ic('chevL', 20, 2)}</button><button class="range-label range-btn press" data-lift data-act="pick-period" aria-label="${fut ? 'Upcoming entries. Choose a ' + st.period + ' instead' : 'Choose a ' + st.period + ': ' + esc(r.label)}">${fut ? `<span class="range-stack"><span>Upcoming</span><small>${esc(r.sub)}</small></span>` : UI.rangeText(r.label, r.sub)}${ic('chevD', 16, 2.2)}</button><button class="icon-btn press" data-lift data-act="act-step" data-dir="1" aria-label="${!fut && r.to >= today ? 'Upcoming' : 'Next'}"${canNext ? '' : ' disabled'}>${ic('chevR', 20, 2)}</button></div>`;
+      const all = fut ? S.range(r.from, r.to).reverse() : S.range(r.from, listTo);
+      const tot = S.totals(r.from, listTo);
       h += `<section class="card summary3"><div><span class="lbl">Money in</span><span class="mid in">${U.fmt(tot.in, { plus: true })}</span></div><div><span class="lbl">Money out</span><span class="mid">${U.fmt(-tot.out)}</span></div><div class="r"><span class="lbl">Net</span><span class="mid">${U.fmt(tot.net, { plus: true })}</span></div></section>`;
       /* category filter */
       const present = {};
@@ -207,7 +227,8 @@
         h += `<div class="filter-note${UI.fnPop ? ' pop' : ''}" role="status"><span class="fn-ic">${ic('list', 16, 2)}</span><span class="fn-text"><span class="fn-title">Showing <b>${esc(S.cat(st.cat).name)}</b> only</span><span class="fn-sub"><span class="nw">${list.length} ${list.length === 1 ? 'entry' : 'entries'}</span>${list.length ? ' <span class="nw">· ' + U.fmt(net, { plus: true }) + '</span>' : ''}</span></span><button class="fn-clear press" data-act="act-cat" data-cat="" aria-label="Clear filter, show all categories">${ic('close', 14, 2.4)} Clear</button></div>`;
       }
       if (!list.length) {
-        h += UI.empty('list', st.cat ? 'Nothing in ' + S.cat(st.cat).name : 'Nothing logged', st.period === 'day' ? 'No transactions on this day.' : 'No transactions in this period.', `<button class="btn btn-primary press" data-act="quick-add" data-date="${st.period === 'day' ? st.anchor : ''}">${ic('plus', 18, 2.2)} Add one</button>`);
+        if (fut) h += UI.empty('calendar', 'Nothing upcoming', 'Entries you date after today show here until their day comes.', '');
+        else h += UI.empty('list', st.cat ? 'Nothing in ' + S.cat(st.cat).name : 'Nothing logged', st.period === 'day' ? 'No transactions on this day.' : 'No transactions in this period.', `<button class="btn btn-primary press" data-act="quick-add" data-date="${st.period === 'day' ? st.anchor : ''}">${ic('plus', 18, 2.2)} Add one</button>`);
       } else {
         const groups = [];
         list.forEach((t) => {
@@ -219,7 +240,7 @@
           .map((g) => {
             const net = g.items.reduce((a, t) => a + S.signed(t), 0);
             const dd = U.parse(g.date);
-            const dayName = g.date === today ? 'Today' : g.date === U.addDays(today, -1) ? 'Yesterday' : U.dowLong(g.date);
+            const dayName = g.date === today ? 'Today' : g.date === U.addDays(today, -1) ? 'Yesterday' : g.date === U.addDays(today, 1) ? 'Tomorrow' : U.dowLong(g.date);
             return `<section class="card day-group"><div class="day-head"><span class="day-num">${dd.getDate()}</span><span class="day-meta"><b>${dayName}</b><span>${U.MONL[dd.getMonth()]} ${dd.getFullYear()}</span></span><span class="day-net">${U.fmt(net, { plus: true })}</span></div>${g.items.map((t) => UI.txRow(t)).join('')}</section>`;
           })
           .join('');
@@ -246,12 +267,27 @@
   };
   A['act-period'] = (el) => {
     UI.act.period = el.getAttribute('data-val');
+    UI.act.future = false;
     UI.refresh();
   };
-  UI.actCanNext = () => rangeOf(UI.act.period, UI.act.anchor).to < U.today();
+  /* forward goes to the next period, and from the current one on to Upcoming if anything is dated later */
+  UI.actCanNext = () => {
+    if (UI.act.future) return false;
+    return rangeOf(UI.act.period, UI.act.anchor).to < U.today() || S.future().length > 0;
+  };
   UI.actStep = (dir, from) => {
     const st = UI.act;
     if (dir > 0 && !UI.actCanNext()) return false;
+    if (st.future) {
+      st.future = false;
+      UI.swapPeriod(dir, from);
+      return true;
+    }
+    if (dir > 0 && rangeOf(st.period, st.anchor).to >= U.today()) {
+      st.future = true;
+      UI.swapPeriod(dir, from);
+      return true;
+    }
     let a = st.anchor;
     if (st.period === 'day') a = U.addDays(a, dir);
     else if (st.period === 'week') a = U.addDays(a, 7 * dir);
@@ -262,9 +298,11 @@
     return true;
   };
   A['act-now'] = () => {
+    const back = UI.act.future;
     UI.act.anchor = U.today();
+    UI.act.future = false;
     U.vibrate(5);
-    UI.swapPeriod(1);
+    UI.swapPeriod(back ? -1 : 1);
   };
   A['act-step'] = (el) => UI.actStep(Number(el.getAttribute('data-dir')));
   /* screens you can swipe between periods on: Activity here, Insights further down */
@@ -588,7 +626,8 @@
       const months = [];
       for (let k = 5; k >= 0; k--) {
         const ms = S.mAdd(m, -k);
-        const t = S.totals(ms, S.mEnd(ms));
+        const me = S.mEnd(ms);
+        const t = S.totals(ms, me > today ? today : me);
         months.push({ label: S.mShortName(ms), full: S.mLabel(ms) + (S.payMode() ? ' (' + S.mSpan(ms) + ')' : ''), in: t.in, out: t.out });
       }
       h += `<section class="card"><div class="card-head"><h2 class="card-title">Last 6 months</h2></div><div class="legend top"><span><i class="sw sw-out"></i>Spent</span><span><i class="sw sw-in"></i>Income</span></div>${MT.charts.monthBars(months)}<p class="muted sm">Tap a month for the numbers.</p></section>`;
@@ -608,6 +647,7 @@
       title: st.period === 'month' ? 'Choose a month' : st.period === 'week' ? 'Choose a week' : 'Choose a day',
       onPick: (iso) => {
         UI.act.anchor = st.period === 'month' ? iso : iso;
+        UI.act.future = false;
         UI.entering = true;
         UI.refresh();
       }

@@ -262,7 +262,16 @@
     return c;
   };
   S.signed = (t) => (t.type === 'income' ? t.amount : -t.amount);
-  S.balance = () => S.tx.reduce((a, t) => a + S.signed(t), 0);
+  /* your balance today: entries dated in the future don't count until their day comes */
+  S.balance = () => {
+    const today = U.today();
+    return S.tx.reduce((a, t) => (t.date <= today ? a + S.signed(t) : a), 0);
+  };
+  /* entries dated after today, soonest first */
+  S.future = () => {
+    const today = U.today();
+    return S.tx.filter((t) => t.date > today).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  };
   S.isStat = (t) => t.categoryId !== 'adjust' && !t.excluded;
   S.range = (from, to) => S.tx.filter((t) => t.date >= from && t.date <= to);
   S.totals = (from, to) => {

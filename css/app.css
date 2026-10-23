@@ -626,3 +626,6 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
 .grab-zone { flex: none; padding: 10px 0 6px; touch-action: none; cursor: grab; }
 .grab-zone .grab { margin: 0 auto; }
 .sheet .qa-head, .sheet .qa-amount, .sheet .sheet-title, .sheet .txa-head { touch-action: none; }
+
+/* future-dated entries */
+.hero-pending { margin-top: 2px; font-size: 13px; font-weight: 650; color: rgba(255, 255, 255, .78); }

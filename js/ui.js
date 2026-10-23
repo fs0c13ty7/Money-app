@@ -192,6 +192,7 @@
     if (o.showDate) sub.push(U.fmtDay(t.date));
     if (t.recurringId) sub.push('Recurring');
     if (t.excluded) sub.push('Not in reports');
+    if (t.date > U.today()) sub.push('Upcoming');
     return `<button class="tx-row press" data-act="edit-tx" data-id="${U.esc(t.id)}">${UI.tile(c)}<span class="tx-main"><span class="tx-title">${o.titleHtml || U.esc(title)}</span>${sub.length ? `<span class="tx-sub">${U.esc(sub.join(' · '))}</span>` : ''}${o.noteHtml || ''}</span><span class="${UI.amountClass(t)}">${U.fmtSigned(t)}</span></button>`;
   };
 

@@ -54,7 +54,7 @@
       const t = U.today();
       const y = U.addDays(t, -1);
       const custom = st.date !== t && st.date !== y;
-      return `<button type="button" class="chip${st.date === t ? ' on' : ''}" data-act="qa-date" data-val="${t}" aria-pressed="${st.date === t}">Today</button><button type="button" class="chip${st.date === y ? ' on' : ''}" data-act="qa-date" data-val="${y}" aria-pressed="${st.date === y}">Yesterday</button><label class="chip date-chip${custom ? ' on' : ''}" for="qa-date-in">${ic('calendar', 16, 2)}<span>${custom ? esc(U.fmtDay(st.date)) : 'Other date'}</span><input type="date" id="qa-date-in" value="${st.date}" max="${t}" aria-label="Pick a date"></label>`;
+      return `<button type="button" class="chip${st.date === t ? ' on' : ''}" data-act="qa-date" data-val="${t}" aria-pressed="${st.date === t}">Today</button><button type="button" class="chip${st.date === y ? ' on' : ''}" data-act="qa-date" data-val="${y}" aria-pressed="${st.date === y}">Yesterday</button><label class="chip date-chip${custom ? ' on' : ''}" for="qa-date-in">${ic('calendar', 16, 2)}<span>${custom ? esc(U.fmtDay(st.date)) : 'Other date'}</span><input type="date" id="qa-date-in" value="${st.date}" aria-label="Pick a date"></label>`;
     };
     const keypadHtml = () =>
       ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del']
@@ -779,7 +779,8 @@
       for (let m = 0; m < 12; m++) {
         const ms = pm ? S.mNamed(year, m) : year + '-' + String(m + 1).padStart(2, '0') + '-01';
         const future = ms > today;
-        const t = future ? null : S.totals(ms, pm ? S.mEnd(ms) : U.monthEnd(ms));
+        const mEnd = pm ? S.mEnd(ms) : U.monthEnd(ms);
+        const t = future ? null : S.totals(ms, mEnd > today ? today : mEnd);
         const sel = pm ? ms === S.mStart(o.value) : ms === U.monthStart(o.value);
         const cur = pm ? ms === S.mStart(today) : ms === U.monthStart(today);
         h += `<button class="pk-month press${sel ? ' sel' : ''}${cur ? ' cur' : ''}" data-act="pk-month" data-val="${ms}"${future ? ' disabled' : ''} aria-label="${U.MONL[m]} ${year}${t && t.out ? ', spent ' + U.fmt(t.out) : ''}"><b>${U.MON[m]}</b><span>${t && t.out ? U.fmtShort(t.out) : '—'}</span></button>`;
