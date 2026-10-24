@@ -51,25 +51,29 @@
       X.alerts().forEach((a) => {
         h += `<div class="alert ${a.kind}" data-alert="${esc(a.id)}"><span class="alert-ic">${ic(a.icon, 18, 2)}</span><button class="alert-main" data-act="edit-tx" data-id="${esc(a.txId)}"><b>${esc(a.title)}</b><span>${esc(a.body)}</span></button><button class="icon-btn sm" data-act="dismiss-alert" data-id="${esc(a.id)}" aria-label="Dismiss">${ic('close', 16, 2)}</button></div>`;
       });
+      /* the four cards below the balance, in the order you chose (More › Arrange Home) */
+      const cards = {};
       /* month card */
-      h += `<section class="card"><div class="card-head"><h2 class="card-title">${S.mName(today)} so far</h2><span class="muted sm">Day ${fc.dayIdx} of ${fc.days}</span></div>`;
-      h += `<div class="pair"><div><span class="lbl">Spent</span><span class="big">${U.fmt(tot.out)}</span></div><div><span class="lbl">Income</span><span class="big in">${U.fmt(tot.in, { plus: true })}</span></div></div>`;
-      h += pacePill(fc);
+      let c = `<section class="card"><div class="card-head"><h2 class="card-title">${S.mName(today)} so far</h2><span class="muted sm">Day ${fc.dayIdx} of ${fc.days}</span></div>`;
+      c += `<div class="pair"><div><span class="lbl">Spent</span><span class="big">${U.fmt(tot.out)}</span></div><div><span class="lbl">Income</span><span class="big in">${U.fmt(tot.in, { plus: true })}</span></div></div>`;
+      c += pacePill(fc);
       if (S.tx.length) {
-        h += MT.charts.monthLine(fc, { animate: UI.entering });
-        h += lineLegend(fc);
+        c += MT.charts.monthLine(fc, { animate: UI.entering });
+        c += lineLegend(fc);
       }
-      h += `<button class="link-row press" data-act="tab" data-to="insights">See insights ${ic('chevR', 16, 2)}</button></section>`;
+      c += `<button class="link-row press" data-act="tab" data-to="insights">See insights ${ic('chevR', 16, 2)}</button></section>`;
+      cards.month = c;
       /* top spending */
       const p = UI.homePeriod;
       const from = p === 'week' ? U.weekStart(today, S.settings().weekStart) : S.mStart(today);
       const cats = S.byCategory(from, today, 'expense');
-      const totalOut = cats.reduce((a, c) => a + c.total, 0);
-      h += `<section class="card"><div class="card-head"><h2 class="card-title">Top spending</h2>${UI.seg('home-period', [{ id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }], p, 'home-period', 'seg-sm')}</div>`;
+      const totalOut = cats.reduce((a, x) => a + x.total, 0);
+      c = `<section class="card"><div class="card-head"><h2 class="card-title">Top spending</h2>${UI.seg('home-period', [{ id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }], p, 'home-period', 'seg-sm')}</div>`;
       if (cats.length) {
-        h += `<div class="cat-bars">` + cats.slice(0, 4).map((c) => catBar(c, totalOut, cats[0].total, from, today)).join('') + `</div>`;
-      } else h += `<p class="muted pad-t">Nothing spent ${p === 'week' ? 'this week' : 'this month'} yet.</p>`;
-      h += `</section>`;
+        c += `<div class="cat-bars">` + cats.slice(0, 4).map((x) => catBar(x, totalOut, cats[0].total, from, today)).join('') + `</div>`;
+      } else c += `<p class="muted pad-t">Nothing spent ${p === 'week' ? 'this week' : 'this month'} yet.</p>`;
+      c += `</section>`;
+      cards.top = c;
       /* coming up */
       const fut = S.future();
       const up = fut
@@ -78,25 +82,31 @@
         .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
         .slice(0, fut.length ? Math.max(3, Math.min(fut.length, 5)) : 3);
       if (up.length) {
-        h += `<section class="card list-card"><div class="card-head"><h2 class="card-title">Coming up</h2><button class="link press" data-act="go" data-to="recurring">All recurring</button></div>`;
-        h += up
+        c = `<section class="card list-card"><div class="card-head"><h2 class="card-title">Coming up</h2><button class="link press" data-act="go" data-to="recurring">All recurring</button></div>`;
+        c += up
           .map((u) => {
             if (u.tx) {
               const ct = S.cat(u.tx.categoryId);
               return `<button class="tx-row press" data-act="edit-tx" data-id="${esc(u.tx.id)}">${UI.tile(ct)}<span class="tx-main"><span class="tx-title">${esc(u.tx.name || ct.name)}</span><span class="tx-sub">${esc(U.fmtDay(u.date))} · not in your balance yet</span></span><span class="${UI.amountClass(u.tx)}">${U.fmtSigned(u.tx)}</span></button>`;
             }
-            const c = S.cat(u.rule.categoryId);
-            return `<button class="tx-row press" data-act="edit-rec" data-id="${esc(u.rule.id)}">${UI.tile(c)}<span class="tx-main"><span class="tx-title">${esc(u.rule.name)}</span><span class="tx-sub">${esc(U.fmtDay(u.date))} · logged automatically</span></span><span class="${u.rule.type === 'income' ? 'amt in' : 'amt'}">${u.rule.type === 'income' ? '+' : '−'}${U.fmt(u.rule.amount)}</span></button>`;
+            const rc = S.cat(u.rule.categoryId);
+            return `<button class="tx-row press" data-act="edit-rec" data-id="${esc(u.rule.id)}">${UI.tile(rc)}<span class="tx-main"><span class="tx-title">${esc(u.rule.name)}</span><span class="tx-sub">${esc(U.fmtDay(u.date))} · logged automatically</span></span><span class="${u.rule.type === 'income' ? 'amt in' : 'amt'}">${u.rule.type === 'income' ? '+' : '−'}${U.fmt(u.rule.amount)}</span></button>`;
           })
           .join('');
-        h += `</section>`;
+        c += `</section>`;
+        cards.upcoming = c;
       }
       /* recent */
       if (S.tx.length) {
-        h += `<section class="card list-card"><div class="card-head"><h2 class="card-title">Recent</h2><button class="link press" data-act="see-all">See all</button></div>`;
-        h += S.tx.filter((t) => t.date <= today).slice(0, 5).map((t) => UI.txRow(t, { showDate: true })).join('');
-        h += `</section>`;
+        c = `<section class="card list-card"><div class="card-head"><h2 class="card-title">Recent</h2><button class="link press" data-act="see-all">See all</button></div>`;
+        c += S.tx.filter((t) => t.date <= today).slice(0, 5).map((t) => UI.txRow(t, { showDate: true })).join('');
+        c += `</section>`;
+        cards.recent = c;
       }
+      UI.homeOrder().forEach((o) => {
+        if (o.on && cards[o.id]) h += cards[o.id];
+      });
+      if (S.tx.length) h += `<button class="arrange-link press" data-act="home-arrange">${ic('sliders', 16, 2)} Arrange Home</button>`;
       h += `</div>`;
       return h;
     }
@@ -171,6 +181,150 @@
     UI.act = { period: period, anchor: to, cat: el.getAttribute('data-cat') };
     UI.tab('activity');
   };
+
+  /* ---------- Arrange Home: the order of the cards under the balance, and which ones show ---------- */
+  const HOME_CARDS = [
+    { id: 'month', name: 'Month so far', sub: 'Spending vs usual' },
+    { id: 'top', name: 'Top spending', sub: 'Biggest categories' },
+    { id: 'upcoming', name: 'Coming up', sub: 'Bills due soon' },
+    { id: 'recent', name: 'Recent', sub: 'Latest entries' }
+  ];
+  UI.homeOrder = () => {
+    const saved = Array.isArray(S.settings().homeCards) ? S.settings().homeCards : [];
+    const known = HOME_CARDS.map((c) => c.id);
+    const out = [];
+    saved.forEach((o) => {
+      if (o && known.indexOf(o.id) >= 0 && !out.some((x) => x.id === o.id)) out.push({ id: o.id, on: o.on !== false });
+    });
+    known.forEach((id) => {
+      if (!out.some((x) => x.id === id)) out.push({ id: id, on: true });
+    });
+    return out;
+  };
+  const isDefaultOrder = (o) => o.every((x, i) => x.id === HOME_CARDS[i].id && x.on);
+  let arr = null;
+  UI.homeArrange = () => {
+    let entry = null;
+    let order = UI.homeOrder();
+    const save = async () => {
+      try {
+        await S.setSetting('homeCards', order.map((o) => ({ id: o.id, on: o.on })));
+      } catch (e) {
+        UI.error(e);
+      }
+      if (UI.route.name === 'home') UI.refresh();
+    };
+    const render = () => {
+      const shown = order.filter((o) => o.on).length;
+      let h = `<div class="form"><div><h2 class="sheet-title">Arrange Home</h2><p class="sheet-text">Drag a card by its handle, or use the arrows. Switch a card off to hide it. Your balance always stays at the top.</p></div><div class="arr-list" role="list">`;
+      h += order
+        .map((o, i) => {
+          const c = HOME_CARDS.find((x) => x.id === o.id);
+          return `<div class="arr-row${o.on ? '' : ' off'}" role="listitem" data-id="${o.id}"><span class="arr-grip" aria-hidden="true">${ic('grip', 20, 2.6)}</span><span class="arr-text" id="arr-${o.id}"><b>${esc(c.name)}</b><span>${o.on ? esc(c.sub) : 'Hidden'}</span></span><button type="button" class="icon-btn sm press" data-lift data-act="arr-move" data-id="${o.id}" data-d="-1" aria-label="Move ${esc(c.name)} up"${i === 0 ? ' disabled' : ''}>${ic('arrowUp', 18, 2.2)}</button><button type="button" class="icon-btn sm press" data-lift data-act="arr-move" data-id="${o.id}" data-d="1" aria-label="Move ${esc(c.name)} down"${i === order.length - 1 ? ' disabled' : ''}>${ic('arrowDown', 18, 2.2)}</button>${UI.switch('arr-sw-' + o.id, o.on, 'arr-toggle', 'arr-' + o.id).replace('<button ', '<button data-id="' + o.id + '" ')}</div>`;
+        })
+        .join('');
+      h += `</div>`;
+      if (!shown) h += `<p class="muted sm">All cards are hidden, so Home will only show your balance.</p>`;
+      h += `<div class="btn-row"><button type="button" class="btn btn-soft press" data-act="arr-reset"${isDefaultOrder(order) ? ' disabled' : ''}>Reset</button><button type="button" class="btn btn-primary press" data-act="sheet-close">Done</button></div></div>`;
+      return h;
+    };
+    const redraw = (focusSel) => {
+      if (!entry) return;
+      UI.rerenderSheet(entry);
+      if (focusSel) {
+        const f = entry.el.querySelector(focusSel);
+        if (f && !f.disabled) f.focus({ preventScroll: true });
+      }
+    };
+    /* drag by the handle: the row follows your finger and the others slide out of its way */
+    const bindDrag = (sheet) => {
+      const list = sheet.querySelector('.arr-list');
+      if (!list) return;
+      list.addEventListener('pointerdown', (e) => {
+        const grip = e.target.closest('.arr-grip');
+        if (!grip || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        e.preventDefault();
+        const row = grip.closest('.arr-row');
+        const rows = [...list.querySelectorAll('.arr-row')];
+        const from = rows.indexOf(row);
+        const rects = rows.map((r) => r.getBoundingClientRect());
+        const step = rects.length > 1 ? rects[1].top - rects[0].top : rects[0].height;
+        let to = from;
+        const y0 = e.clientY;
+        try {
+          grip.setPointerCapture(e.pointerId);
+        } catch (er) {}
+        row.classList.add('dragging');
+        list.classList.add('sorting');
+        U.vibrate(8);
+        const move = (ev) => {
+          if (ev.pointerId !== e.pointerId) return;
+          const dy = Math.max(-from * step, Math.min((rows.length - 1 - from) * step, ev.clientY - y0));
+          row.style.transform = 'translateY(' + dy + 'px)';
+          const t = Math.max(0, Math.min(rows.length - 1, from + Math.round(dy / step)));
+          if (t !== to) {
+            to = t;
+            U.vibrate(5);
+          }
+          rows.forEach((r, i) => {
+            if (r === row) return;
+            let shift = 0;
+            if (from < to && i > from && i <= to) shift = -step;
+            if (from > to && i < from && i >= to) shift = step;
+            r.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+          });
+        };
+        const end = (ev) => {
+          if (ev.pointerId !== e.pointerId) return;
+          grip.removeEventListener('pointermove', move);
+          grip.removeEventListener('pointerup', end);
+          grip.removeEventListener('pointercancel', end);
+          if (to !== from) {
+            const item = order.splice(from, 1)[0];
+            order.splice(to, 0, item);
+            redraw();
+            save();
+          } else {
+            row.classList.remove('dragging');
+            list.classList.remove('sorting');
+            rows.forEach((r) => (r.style.transform = ''));
+          }
+        };
+        grip.addEventListener('pointermove', move);
+        grip.addEventListener('pointerup', end);
+        grip.addEventListener('pointercancel', end);
+      });
+    };
+    arr = {
+      move(id, d) {
+        const i = order.findIndex((o) => o.id === id);
+        const j = i + d;
+        if (i < 0 || j < 0 || j >= order.length) return;
+        const item = order.splice(i, 1)[0];
+        order.splice(j, 0, item);
+        /* keep focus on the same arrow so you can keep pressing it */
+        redraw(`[data-act="arr-move"][data-id="${id}"][data-d="${d}"]`);
+        save();
+      },
+      toggle(id) {
+        const o = order.find((x) => x.id === id);
+        if (!o) return;
+        o.on = !o.on;
+        redraw('#arr-sw-' + id);
+        save();
+      },
+      reset() {
+        order = HOME_CARDS.map((c) => ({ id: c.id, on: true }));
+        redraw();
+        save();
+      }
+    };
+    entry = UI.openSheet({ label: 'Arrange Home', render: render, after: bindDrag, onClose: () => (arr = null) });
+  };
+  A['home-arrange'] = () => UI.homeArrange();
+  A['arr-move'] = (el) => arr && arr.move(el.getAttribute('data-id'), Number(el.getAttribute('data-d')));
+  A['arr-toggle'] = (el) => arr && arr.toggle(el.getAttribute('data-id'));
+  A['arr-reset'] = () => arr && arr.reset();
 
   /* ================= ACTIVITY ================= */
   function rangeOf(period, anchor) {
@@ -694,7 +848,7 @@
       const last = S.meta.lastFileBackup;
       let h = `<header class="appbar topbar"><h1 class="h1">More</h1></header><div class="stack">`;
       h += `<h2 class="section-label">Appearance</h2><section class="card">${UI.seg('Theme', [{ id: 'system', label: 'System', icon: 'system' }, { id: 'light', label: 'Light', icon: 'sun' }, { id: 'dark', label: 'Dark', icon: 'moon' }], st.theme, 'theme')}<p class="muted sm pad-t" id="theme-note">${themeNote(st.theme)}</p>`;
-      h += `<div class="set-row bordered"><span id="hide-lbl" class="set-text"><b>Hide balance when the app opens</b><span>Tap the eye on Home to show it</span></span>${UI.switch('sw-hide', st.hideOnOpen, 'set-hide', 'hide-lbl')}</div></section>`;
+      h += `<div class="set-row bordered"><span id="hide-lbl" class="set-text"><b>Hide balance when the app opens</b><span>Tap the eye on Home to show it</span></span>${UI.switch('sw-hide', st.hideOnOpen, 'set-hide', 'hide-lbl')}</div><button type="button" class="set-row bordered set-link press" data-act="home-arrange"><span class="set-text"><b>Arrange Home</b><span>Card order, and which ones show</span></span><span class="chev">${ic('chevR', 18, 2)}</span></button></section>`;
       h += `<h2 class="section-label">Your data</h2><section class="card list-card">`;
       if (MT.cloud && MT.cloud.enabled()) {
         const ck = MT.cloud.state().kind;

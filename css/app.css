@@ -370,6 +370,24 @@ label.tx-row { cursor: pointer; }
 .switch[aria-checked="true"] .knob { transform: translateX(20px); }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 2px; }
 .set-row.bordered { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--divider); }
+.set-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; border-radius: 0; background: none; color: var(--ink); font: inherit; text-align: left; padding-left: 0; padding-right: 0; padding-bottom: 2px; }
+.set-link .chev { color: var(--faint); display: inline-flex; }
+/* Arrange Home */
+.arrange-link { display: flex; align-items: center; justify-content: center; gap: 6px; height: 44px; margin: 0 auto; padding: 0 16px; border: 0; border-radius: 14px; background: none; color: var(--muted); font-size: 14px; font-weight: 700; }
+.arr-list { position: relative; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 18px; padding: 0 12px 0 4px; background: var(--surface); }
+.arr-row { position: relative; display: flex; align-items: center; gap: 6px; min-height: 64px; border-top: 1px solid var(--divider); background: transparent; transition: transform .2s var(--ease), opacity .2s; }
+.arr-row:first-child { border-top: 0; }
+.arr-grip { flex: none; width: 40px; height: 52px; display: inline-flex; align-items: center; justify-content: center; color: var(--faint); touch-action: none; cursor: grab; }
+.arr-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.arr-text b { font-size: 15.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arr-text span { font-size: 12.5px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arr-row .switch { margin-left: 6px; }
+.arr-row.off .arr-text b { color: var(--muted); }
+.arr-list.sorting .arr-row { user-select: none; -webkit-user-select: none; }
+.arr-row.dragging { z-index: 2; transition: none; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg); border-top-color: transparent; }
+.arr-row.dragging + .arr-row { border-top-color: transparent; }
+.arr-row.dragging .arr-grip { color: var(--accent-ink); cursor: grabbing; }
+@media (prefers-reduced-motion: reduce) { .arr-row { transition: none; } }
 .set-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .set-text b { font-size: 14.5px; }
 .set-text span { font-size: 12.5px; font-weight: 600; color: var(--muted); }
