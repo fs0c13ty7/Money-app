@@ -457,6 +457,32 @@
       true
     );
   })();
+  /* Edge fades on sideways chip rows: the further there is to scroll in a direction, the stronger that
+     edge fades, up to FADE px. Updated as you scroll and whenever a row appears or changes. */
+  (function () {
+    const FADE = 32;
+    const fade = (el) => {
+      const max = el.scrollWidth - el.clientWidth;
+      const l = max > 1 ? Math.min(FADE, Math.max(0, el.scrollLeft)) : 0;
+      const r = max > 1 ? Math.min(FADE, Math.max(0, max - el.scrollLeft)) : 0;
+      el.style.setProperty('--fl', l + 'px');
+      el.style.setProperty('--fr', r + 'px');
+    };
+    UI.edgeFade = fade;
+    const all = () => document.querySelectorAll('.scroll-x').forEach(fade);
+    document.addEventListener('scroll', (e) => e.target.classList && e.target.classList.contains('scroll-x') && fade(e.target), true);
+    let queued = false;
+    new MutationObserver(() => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        all();
+      });
+    }).observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('resize', all);
+    all();
+  })();
   UI.actions.tab = (el) => UI.tab(el.getAttribute('data-to'));
   UI.actions.back = () => UI.back();
   UI.actions.go = (el) => {

@@ -245,6 +245,10 @@ button.stat:active .stat-go, button.stat:hover .stat-go { transform: translateX(
 .chips.wrap { flex-wrap: wrap; }
 .scroll-x { overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 2px 20px; scroll-padding: 0 20px; }
 .scroll-x::-webkit-scrollbar { display: none; }
+/* chip rows fade out at an edge only when there's more to scroll that way; the fade shrinks to nothing at the ends */
+@property --fl { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --fr { syntax: '<length>'; inherits: false; initial-value: 0px; }
+.scroll-x { --fl: 0px; --fr: 0px; -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fl), #000 calc(100% - var(--fr)), transparent); mask-image: linear-gradient(to right, transparent, #000 var(--fl), #000 calc(100% - var(--fr)), transparent); }
 .chip { position: relative; flex: none; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 700; white-space: nowrap; transition: background-color .2s, border-color .2s, color .2s, transform .14s var(--ease); }
 .chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .cat-chip { height: 46px; padding: 0 14px 0 5px; border-radius: 16px; }
