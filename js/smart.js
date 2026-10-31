@@ -189,6 +189,45 @@
     return out;
   };
 
+  /* ---------- Money in and out this month, as running totals, with last month to compare against ---------- */
+  const runTotals = (start, type) => {
+    const end = S.mEnd(start);
+    const daily = {};
+    S.range(start, end).forEach((t) => {
+      if (S.isStat(t) && (type === 'income' ? t.type === 'income' : t.type !== 'income')) daily[t.date] = (daily[t.date] || 0) + t.amount;
+    });
+    const out = [];
+    let run = 0;
+    for (let d = start; d <= end; d = U.addDays(d, 1)) {
+      run += daily[d] || 0;
+      out.push(run);
+    }
+    return out;
+  };
+  X.monthFlow = (monthIso) => {
+    const start = S.mStart(monthIso);
+    const days = S.mDays(start);
+    const today = U.today();
+    const isCurrent = S.mStart(today) === start;
+    const dayIdx = isCurrent ? U.daysBetween(start, today) + 1 : today > start ? days : 0;
+    const out = runTotals(start, 'expense');
+    const inn = runTotals(start, 'income');
+    const at = (arr, n) => (n > 0 ? arr[Math.min(n, arr.length) - 1] : 0);
+    const r = { start: start, days: days, dayIdx: dayIdx, isCurrent: isCurrent, out: out, inn: inn, spent: at(out, dayIdx), earned: at(inn, dayIdx), prev: null };
+    /* last month, up to the same day (or the whole of it, for a finished month) */
+    const ps = S.mAdd(start, -1);
+    const first = S.firstDate();
+    if (first && S.mEnd(ps) >= first) {
+      const pOut = runTotals(ps, 'expense');
+      const pIn = runTotals(ps, 'income');
+      if (pOut[pOut.length - 1] > 0 || pIn[pIn.length - 1] > 0) {
+        const n = isCurrent ? dayIdx : pOut.length;
+        r.prev = { start: ps, name: S.mName(ps), spent: at(pOut, n), earned: at(pIn, n), whole: !isCurrent || n >= pOut.length };
+      }
+    }
+    return r;
+  };
+
   /* ---------- Forecast: where this month's spending is heading ---------- */
   X.forecast = (monthIso) => {
     const start = S.mStart(monthIso);

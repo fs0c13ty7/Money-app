@@ -19,7 +19,7 @@
   V.home = {
     render() {
       const today = U.today();
-      const fc = X.forecast(today);
+      const fl = X.monthFlow(today);
       const tot = S.totals(S.mStart(today), today);
       const d = U.parse(today);
       let h = `<header class="appbar topbar"><div><p class="eyebrow">${U.dowLong(today)} ${d.getDate()} ${U.MONL[d.getMonth()]}</p><h1 class="h1">Overview</h1></div><button class="icon-btn outline press" data-act="go" data-to="search" aria-label="Search transactions">${ic('search', 20, 1.9)}</button></header>`;
@@ -54,12 +54,12 @@
       /* the four cards below the balance, in the order you chose (More › Arrange Home) */
       const cards = {};
       /* month card */
-      let c = `<section class="card"><div class="card-head"><h2 class="card-title">${S.mName(today)} so far</h2><span class="muted sm">Day ${fc.dayIdx} of ${fc.days}</span></div>`;
+      let c = `<section class="card"><div class="card-head"><h2 class="card-title">${S.mName(today)} so far</h2><span class="muted sm">Day ${fl.dayIdx} of ${fl.days}</span></div>`;
       c += `<div class="pair"><div><span class="lbl">Spent</span><span class="big">${U.fmt(tot.out)}</span></div><div><span class="lbl">Income</span><span class="big in">${U.fmt(tot.in, { plus: true })}</span></div></div>`;
-      c += pacePill(fc);
+      c += comparePill(fl);
       if (S.tx.length) {
-        c += MT.charts.monthLine(fc, { animate: UI.entering });
-        c += lineLegend(fc);
+        c += MT.charts.flowLine(fl, { animate: UI.entering });
+        c += flowLegend(fl);
       }
       c += `<button class="link-row press" data-act="tab" data-to="insights">See insights ${ic('chevR', 16, 2)}</button></section>`;
       cards.month = c;
@@ -112,20 +112,20 @@
     }
   };
 
-  function pacePill(fc) {
-    if (fc.avgToDate != null && fc.dayIdx) {
-      const diff = fc.avgToDate - fc.spent;
-      if (diff >= 0) return `<p class="pill good">${ic('down', 14, 2.2)} ${U.fmt(diff)} under your usual pace</p>`;
-      return `<p class="pill warn">${ic('up', 14, 2.2)} ${U.fmt(-diff)} over your usual pace</p>`;
-    }
-    if (fc.projection) return `<p class="pill">${ic('spark', 14, 2)} Heading for about ${U.fmt(fc.projection)} this month</p>`;
-    return '';
+  /* spending against last month: up to the same day for the current month, whole months otherwise */
+  function compareDiff(fl) {
+    if (!fl.prev || !fl.dayIdx) return null;
+    return { diff: fl.spent - fl.prev.spent, when: fl.prev.whole ? fl.prev.name : 'this point in ' + fl.prev.name };
   }
-  function lineLegend(fc) {
-    let l = `<div class="legend"><span><i class="sw sw-out"></i>This month · ${U.fmt(fc.spent)}</span>`;
-    if (fc.avg) l += `<span><i class="sw sw-avg"></i>${fc.avgMonths}-month average${fc.avgToDate != null ? ' · ' + U.fmt(fc.avgToDate) : ''}</span>`;
-    if (fc.projection) l += `<span><i class="sw sw-proj"></i>Forecast · ${U.fmt(fc.projection)}</span>`;
-    return l + `</div>`;
+  function comparePill(fl) {
+    const c = compareDiff(fl);
+    if (!c) return '';
+    if (c.diff === 0) return `<p class="pill">${ic('check', 14, 2.2)} Same as ${esc(c.when)}</p>`;
+    if (c.diff < 0) return `<p class="pill good">${ic('down', 14, 2.2)} ${U.fmt(-c.diff)} less than ${esc(c.when)}</p>`;
+    return `<p class="pill warn">${ic('up', 14, 2.2)} ${U.fmt(c.diff)} more than ${esc(c.when)}</p>`;
+  }
+  function flowLegend(fl) {
+    return `<div class="legend"><span><i class="sw sw-in"></i>Money in · ${U.fmt(fl.earned)}</span><span><i class="sw sw-out"></i>Money out · ${U.fmt(fl.spent)}</span></div>`;
   }
   function catBar(c, total, max, from, to) {
     const pct = total ? Math.round((c.total / total) * 100) : 0;
@@ -731,7 +731,7 @@
       const today = U.today();
       const isCurrent = m === S.mStart(today);
       const end = isCurrent ? today : S.mEnd(m);
-      const fc = X.forecast(m);
+      const fl = X.monthFlow(m);
       const tot = S.totals(m, end);
       let h = `<header class="appbar topbar"><h1 class="h1">Insights</h1>${isCurrent ? UI.noPill('insights') : UI.nowPill('insights', 'ins-now', 'This month')}</header><div class="stack"><div class="swipe-area${UI.insEnter ? ' ' + UI.insEnter : ''}">`;
       UI.insEnter = null;
@@ -742,12 +742,10 @@
       }
       /* headline */
       h += `<section class="card">`;
-      if (isCurrent && fc.projection) {
-        h += `<p class="lbl">Forecast for ${S.mName(m)}</p><p class="headline">${U.fmt(fc.projection)}</p><p class="muted">You’ve spent ${U.fmt(fc.spent)} so far${fc.avg ? `. A typical month ends around ${U.fmt(fc.avg[fc.days - 1])}` : ''}.</p>`;
-      } else {
-        h += `<p class="lbl">Spent in ${S.mName(m)}${isCurrent ? ' so far' : ''}</p><p class="headline">${U.fmt(tot.out)}</p>${fc.avg && !isCurrent ? `<p class="muted">Your ${fc.avgMonths}-month average before this was ${U.fmt(fc.avg[fc.days - 1])}.</p>` : ''}`;
-      }
-      h += MT.charts.monthLine(fc, { animate: UI.entering }) + lineLegend(fc) + `</section>`;
+      h += `<p class="lbl">Spent in ${S.mName(m)}${isCurrent ? ' so far' : ''}</p><p class="headline">${U.fmt(tot.out)}</p>`;
+      const cmp = compareDiff(fl);
+      if (cmp) h += `<p class="muted">${cmp.diff === 0 ? 'The same as ' + esc(cmp.when) : U.fmt(Math.abs(cmp.diff)) + (cmp.diff < 0 ? ' less than ' : ' more than ') + esc(cmp.when)}, when you’d spent ${U.fmt(fl.prev.spent)}.</p>`;
+      h += MT.charts.flowLine(fl, { animate: UI.entering }) + flowLegend(fl) + `</section>`;
       /* stat tiles */
       const daily = S.dailySpend(m, end);
       const dayCount = Math.max(1, U.daysBetween(m, end) + 1);

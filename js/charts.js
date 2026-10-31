@@ -61,6 +61,51 @@
     return `<div class="chart" data-chart-id="${id}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${U.esc(label)}" class="chart-svg line-chart">${svg}<rect x="0" y="0" width="${W}" height="${H}" fill="transparent" class="hit"></rect></svg><div class="chart-tip" hidden></div></div>`;
   };
 
+  /* ---------- Month flow: running totals of money in and money out ---------- */
+  C.flowLine = (fl, opts) => {
+    const o = opts || {};
+    const id = 'ch' + ++seq;
+    const W = 340;
+    const H = 168;
+    const top = 12;
+    const bottom = 140;
+    const days = fl.days;
+    const shown = fl.isCurrent ? fl.dayIdx : days;
+    const outV = fl.out.slice(0, shown);
+    const inV = fl.inn.slice(0, shown);
+    const max = C.niceMax(Math.max(outV[outV.length - 1] || 0, inV[inV.length - 1] || 0) * 1.05);
+    const x = (d) => f1((d / (days - 1)) * W);
+    const y = (v) => f1(bottom - (v / max) * (bottom - top));
+    const line = (arr) => arr.map((v, i) => (i ? 'L' : 'M') + x(i) + ' ' + y(v)).join('');
+    let svg = '';
+    let labels = '';
+    [0.5, 1].forEach((g) => {
+      const gy = y(max * g);
+      svg += `<line x1="0" x2="${W}" y1="${gy}" y2="${gy}" class="grid"></line>`;
+      labels += `<text x="${W}" y="${gy - 5}" text-anchor="end" class="axis on-top">${U.fmtShort(max * g)}</text>`;
+    });
+    svg += `<line x1="0" x2="${W}" y1="${bottom}" y2="${bottom}" class="base"></line>`;
+    if (outV.length) {
+      svg += `<path d="${line(outV)}L${x(outV.length - 1)} ${bottom}L0 ${bottom}Z" class="area"></path>`;
+      svg += `<path d="${line(inV)}" class="in-line${o.animate ? ' draw' : ''}" pathLength="1"></path>`;
+      svg += `<path d="${line(outV)}" class="actual${o.animate ? ' draw' : ''}" pathLength="1"></path>`;
+    }
+    if (fl.isCurrent && fl.dayIdx) {
+      const tx = x(fl.dayIdx - 1);
+      svg += `<line x1="${tx}" x2="${tx}" y1="${top}" y2="${bottom}" class="today"></line>`;
+      svg += `<circle cx="${tx}" cy="${y(inV[inV.length - 1] || 0)}" r="4" class="dot-in"></circle>`;
+      svg += `<circle cx="${tx}" cy="${y(outV[outV.length - 1] || 0)}" r="5" class="dot"></circle>`;
+    }
+    svg += labels;
+    svg += `<text x="0" y="${H - 4}" class="axis">${U.fmtShortDate(fl.start)}</text>`;
+    if (fl.isCurrent && fl.dayIdx > 4 && fl.dayIdx < days - 3) svg += `<text x="${x(fl.dayIdx - 1)}" y="${H - 4}" text-anchor="middle" class="axis strong">Today</text>`;
+    svg += `<text x="${W}" y="${H - 4}" text-anchor="end" class="axis">${U.fmtShortDate(MT.store.mEnd(fl.start))}</text>`;
+    svg += `<line class="cross" x1="0" x2="0" y1="${top}" y2="${bottom}" visibility="hidden"></line><circle class="cross-dot" r="4.5" cx="0" cy="0" visibility="hidden"></circle><circle class="cross-in" r="3.5" cx="0" cy="0" visibility="hidden"></circle>`;
+    C.reg[id] = { kind: 'flow', fl: fl, max: max, W: W, top: top, bottom: bottom };
+    const label = `${MT.store.mLabel(fl.start)}${fl.isCurrent ? ' so far' : ''}: money in ${U.fmt(fl.earned)}, money out ${U.fmt(fl.spent)}.`;
+    return `<div class="chart" data-chart-id="${id}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${U.esc(label)}" class="chart-svg line-chart">${svg}<rect x="0" y="0" width="${W}" height="${H}" fill="transparent" class="hit"></rect></svg><div class="chart-tip" hidden></div></div>`;
+  };
+
   /* ---------- Grouped bars: income vs spending by month ---------- */
   C.monthBars = (months) => {
     const id = 'ch' + ++seq;
@@ -164,6 +209,42 @@
           cross.setAttribute('visibility', 'hidden');
           dot.setAttribute('visibility', 'hidden');
           dot2.setAttribute('visibility', 'hidden');
+          hideTip(wrap);
+        };
+        svg.addEventListener('pointermove', move);
+        svg.addEventListener('pointerdown', move);
+        svg.addEventListener('pointerleave', leave);
+        svg.addEventListener('pointercancel', leave);
+      } else if (d.kind === 'flow') {
+        const fl = d.fl;
+        const cross = svg.querySelector('.cross');
+        const dot = svg.querySelector('.cross-dot');
+        const dotIn = svg.querySelector('.cross-in');
+        const y = (v) => d.bottom - (v / d.max) * (d.bottom - d.top);
+        const last = fl.isCurrent ? fl.dayIdx - 1 : fl.days - 1;
+        const move = (ev) => {
+          const r = svg.getBoundingClientRect();
+          const px = Math.max(0, Math.min(r.width, ev.clientX - r.left));
+          const di = Math.min(last, Math.round((px / r.width) * (fl.days - 1)));
+          if (di < 0) return;
+          const X = (di / (fl.days - 1)) * d.W;
+          const o = fl.out[di];
+          const i = fl.inn[di];
+          cross.setAttribute('x1', X);
+          cross.setAttribute('x2', X);
+          cross.setAttribute('visibility', 'visible');
+          dot.setAttribute('cx', X);
+          dot.setAttribute('cy', y(o));
+          dot.setAttribute('visibility', 'visible');
+          dotIn.setAttribute('cx', X);
+          dotIn.setAttribute('cy', y(i));
+          dotIn.setAttribute('visibility', 'visible');
+          showTip(wrap, `<div class="tip-h">${U.fmtDay(U.addDays(fl.start, di))}</div><div class="tip-row"><span class="sw sw-in"></span>Money in <b>${U.fmt(i)}</b></div><div class="tip-row"><span class="sw sw-out"></span>Money out <b>${U.fmt(o)}</b></div>`, (X / d.W) * 100);
+        };
+        const leave = () => {
+          cross.setAttribute('visibility', 'hidden');
+          dot.setAttribute('visibility', 'hidden');
+          dotIn.setAttribute('visibility', 'hidden');
           hideTip(wrap);
         };
         svg.addEventListener('pointermove', move);
