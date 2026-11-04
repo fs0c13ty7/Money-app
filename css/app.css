@@ -544,7 +544,7 @@ label.btn { cursor: pointer; }
 .qa-sheet .sheet-body { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .qa { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .qa .qa-head { padding: 0 max(10px, env(safe-area-inset-right, 0px)) 0 max(10px, env(safe-area-inset-left, 0px)); margin: 0; }
-.qa-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px max(20px, env(safe-area-inset-left, 0px)) 10px max(20px, env(safe-area-inset-right, 0px)); overscroll-behavior: contain; }
+.qa-scroll { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px max(20px, env(safe-area-inset-left, 0px)) 10px max(20px, env(safe-area-inset-right, 0px)); overscroll-behavior: contain; }
 .qa-scroll > *, .form > *, .stack > * { flex-shrink: 0; }
 .qa-amount { display: flex; align-items: center; justify-content: center; min-height: 76px; border: 0; background: none; border-radius: 18px; padding: 4px; }
 .qa-amt { font-size: 50px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; color: var(--ink); }
@@ -562,11 +562,16 @@ label.btn { cursor: pointer; }
 .qa-dates { flex-wrap: wrap; }
 .date-chip input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
 .date-chip { cursor: pointer; }
-.qa-repeat { padding: 2px 2px 0; }
-.qa-bottom { flex: none; padding: 10px max(14px, env(safe-area-inset-right, 0px)) 14px max(14px, env(safe-area-inset-left, 0px)); border-top: 1px solid var(--divider); background: var(--surface); }
-.keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-height: 280px; margin-bottom: 10px; overflow: hidden; transition: max-height .32s var(--ease), opacity .2s, margin .32s var(--ease); }
-.typing .keypad { max-height: 0; opacity: 0; margin-bottom: 0; }
-.key { height: clamp(40px, 6vh, 54px); border: 0; border-radius: 16px; background: var(--surface-2); color: var(--ink); font-size: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; transition: background-color .12s, transform .1s var(--ease); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.qa-repeat { justify-content: flex-start; gap: 12px; padding: 2px 2px 0; }
+.qa-repeat b { flex: 1; font-size: 15px; font-weight: 700; }
+.qa-rep-ic { display: inline-flex; color: var(--muted); }
+.qa-bottom { flex: 1 0 auto; display: flex; flex-direction: column; padding: 10px max(14px, env(safe-area-inset-right, 0px)) 14px max(14px, env(safe-area-inset-left, 0px)); border-top: 1px solid var(--divider); background: var(--surface); }
+.keypad { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 8px; max-height: 360px; margin-bottom: 10px; overflow: hidden; transition: max-height .32s var(--ease), opacity .2s, margin .32s var(--ease); }
+.typing .keypad { max-height: 0; min-height: 0; opacity: 0; margin-bottom: 0; }
+.typing .qa-bottom { flex: none; }
+.typing .qa-scroll { flex: 1 1 auto; }
+.typing .key { min-height: 0; }
+.key { height: auto; min-height: 44px; border: 0; border-radius: 16px; background: var(--surface-2); color: var(--ink); font-size: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; transition: background-color .12s, transform .1s var(--ease); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .key:active { background: var(--line); transform: scale(.96); }
 .qa-save { width: 100%; }
 

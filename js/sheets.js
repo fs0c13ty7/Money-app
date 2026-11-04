@@ -72,7 +72,7 @@
       h += `<div class="chips qa-dates" id="qa-dates" role="group" aria-label="Date">${datesHtml()}</div>`;
       /* notes only show when editing (names carry the detail); new entries get a compact Repeat chip instead */
       if (isEdit) h += `<label class="field" for="qa-note">${ic('note', 18, 1.9)}<span class="sr">Note</span><input id="qa-note" autocomplete="off" enterkeyhint="done" placeholder="Note (optional)" value="${esc(st.note)}"></label>`;
-      else h += `<div class="chips qa-repeat"><button type="button" class="chip${st.repeat ? ' on' : ''}" data-act="qa-repeat" aria-pressed="${st.repeat}">${ic('repeat', 16, 2)} Repeat monthly</button></div>`;
+      else h += `<div class="set-row qa-repeat"><span class="qa-rep-ic" aria-hidden="true">${ic('repeat', 20, 2)}</span><b id="qa-rep-lbl">Repeat every month</b>${UI.switch('qa-rep', st.repeat, 'qa-repeat', 'qa-rep-lbl')}</div>`;
       if (isEdit && st.recurringId) h += `<p class="hint">${ic('repeat', 16, 1.9)} Part of a recurring payment. Changes here only affect this entry.</p>`;
       h += `</div><div class="qa-bottom"><div class="keypad" id="qa-keypad">${keypadHtml()}</div><button type="button" class="btn btn-primary btn-lg qa-save press" data-act="qa-save"></button></div></div>`;
       return h;
@@ -299,8 +299,7 @@
       },
       repeat: (el) => {
         st.repeat = !st.repeat;
-        el.setAttribute('aria-pressed', String(st.repeat));
-        el.classList.toggle('on', st.repeat);
+        el.setAttribute('aria-checked', String(st.repeat));
       },
       apply: applyParse,
       namePick: (i) => {
