@@ -106,6 +106,45 @@
     return `<div class="chart" data-chart-id="${id}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${U.esc(label)}" class="chart-svg line-chart">${svg}<rect x="0" y="0" width="${W}" height="${H}" fill="transparent" class="hit"></rect></svg><div class="chart-tip" hidden></div></div>`;
   };
 
+  /* ---------- Balance over time: one point per month end ---------- */
+  C.balanceLine = (points, opts) => {
+    const o = opts || {};
+    const id = 'ch' + ++seq;
+    const W = 340;
+    const H = 160;
+    const top = 14;
+    const bottom = 134;
+    const vs = points.map((p) => p.v);
+    let lo = Math.min.apply(null, vs);
+    let hi = Math.max.apply(null, vs);
+    const pad = (hi - lo) * 0.12 || Math.max(1000, Math.abs(hi) * 0.1);
+    lo -= pad;
+    hi += pad;
+    const n = points.length;
+    const x = (i) => f1((i / (n - 1)) * W);
+    const y = (v) => f1(bottom - ((v - lo) / (hi - lo)) * (bottom - top));
+    const line = points.map((p, i) => (i ? 'L' : 'M') + x(i) + ' ' + y(p.v)).join('');
+    let svg = '';
+    let labels = '';
+    [hi - pad, lo + pad].forEach((v) => {
+      svg += `<line x1="0" x2="${W}" y1="${y(v)}" y2="${y(v)}" class="grid"></line>`;
+      labels += `<text x="${W}" y="${y(v) - 5}" text-anchor="end" class="axis on-top">${U.fmtShort(v)}</text>`;
+    });
+    if (lo < 0 && hi > 0) svg += `<line x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}" class="base"></line>`;
+    svg += `<path d="${line}L${W} ${bottom}L0 ${bottom}Z" class="area"></path>`;
+    svg += `<path d="${line}" class="actual${o.animate ? ' draw' : ''}" pathLength="1"></path>`;
+    svg += `<circle cx="${x(n - 1)}" cy="${y(vs[n - 1])}" r="5" class="dot"></circle>`;
+    svg += labels;
+    const step = n > 7 ? 2 : 1;
+    points.forEach((p, i) => {
+      if ((n - 1 - i) % step === 0) svg += `<text x="${x(i)}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}" class="axis${i === n - 1 ? ' strong' : ''}">${U.esc(p.label)}</text>`;
+    });
+    svg += `<line class="cross" x1="0" x2="0" y1="${top}" y2="${bottom}" visibility="hidden"></line><circle class="cross-dot" r="4.5" cx="0" cy="0" visibility="hidden"></circle>`;
+    C.reg[id] = { kind: 'bal', points: points, W: W, x: x, y: y };
+    const label = `Balance over the last ${n} months: ${U.fmt(points[0].v)} to ${U.fmt(vs[n - 1])}.`;
+    return `<div class="chart" data-chart-id="${id}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${U.esc(label)}" class="chart-svg line-chart">${svg}<rect x="0" y="0" width="${W}" height="${H}" fill="transparent" class="hit"></rect></svg><div class="chart-tip" hidden></div></div>`;
+  };
+
   /* ---------- Grouped bars: income vs spending by month ---------- */
   C.monthBars = (months) => {
     const id = 'ch' + ++seq;
@@ -209,6 +248,33 @@
           cross.setAttribute('visibility', 'hidden');
           dot.setAttribute('visibility', 'hidden');
           dot2.setAttribute('visibility', 'hidden');
+          hideTip(wrap);
+        };
+        svg.addEventListener('pointermove', move);
+        svg.addEventListener('pointerdown', move);
+        svg.addEventListener('pointerleave', leave);
+        svg.addEventListener('pointercancel', leave);
+      } else if (d.kind === 'bal') {
+        const cross = svg.querySelector('.cross');
+        const dot = svg.querySelector('.cross-dot');
+        const n = d.points.length;
+        const move = (ev) => {
+          const r = svg.getBoundingClientRect();
+          const i = Math.max(0, Math.min(n - 1, Math.round(((ev.clientX - r.left) / r.width) * (n - 1))));
+          const p = d.points[i];
+          const X = d.x(i);
+          cross.setAttribute('x1', X);
+          cross.setAttribute('x2', X);
+          cross.setAttribute('visibility', 'visible');
+          dot.setAttribute('cx', X);
+          dot.setAttribute('cy', d.y(p.v));
+          dot.setAttribute('visibility', 'visible');
+          const prev = i ? p.v - d.points[i - 1].v : null;
+          showTip(wrap, `<div class="tip-h">${U.esc(p.full)}</div><div class="tip-row"><span class="sw sw-out"></span>Balance <b>${U.fmt(p.v)}</b></div>${prev != null ? `<div class="tip-row muted">That month <b>${U.fmt(prev, { plus: true })}</b></div>` : ''}`, (X / d.W) * 100);
+        };
+        const leave = () => {
+          cross.setAttribute('visibility', 'hidden');
+          dot.setAttribute('visibility', 'hidden');
           hideTip(wrap);
         };
         svg.addEventListener('pointermove', move);

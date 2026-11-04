@@ -182,16 +182,28 @@
     UI.tab('activity');
   };
 
-  /* ---------- Arrange Home: the order of the cards under the balance, and which ones show ---------- */
+  /* ---------- Arrange Home / Insights: the order of the cards, and which ones show ---------- */
   const HOME_CARDS = [
-    { id: 'month', name: 'Month so far', sub: 'Spending vs usual' },
+    { id: 'month', name: 'Month so far', sub: 'vs last month' },
     { id: 'top', name: 'Top spending', sub: 'Biggest categories' },
     { id: 'upcoming', name: 'Coming up', sub: 'Bills due soon' },
     { id: 'recent', name: 'Recent', sub: 'Latest entries' }
   ];
-  UI.homeOrder = () => {
-    const saved = Array.isArray(S.settings().homeCards) ? S.settings().homeCards : [];
-    const known = HOME_CARDS.map((c) => c.id);
+  const INS_CARDS = [
+    { id: 'tiles', name: 'Quick stats', sub: 'Per day, biggest day' },
+    { id: 'changes', name: 'What changed', sub: 'vs last month' },
+    { id: 'where', name: 'Where it went', sub: 'By category' },
+    { id: 'balance', name: 'Balance', sub: 'Over 12 months' },
+    { id: 'months', name: 'Last 6 months', sub: 'Spent vs income' }
+  ];
+  const ARRANGE = {
+    home: { cards: HOME_CARDS, key: 'homeCards', title: 'Arrange Home', fixed: 'Your balance always stays at the top.', none: 'All cards are hidden, so Home will only show your balance.' },
+    insights: { cards: INS_CARDS, key: 'insCards', title: 'Arrange Insights', fixed: 'The month’s total and chart always stay at the top.', none: 'All cards are hidden, so Insights will only show the month’s total and chart.' }
+  };
+  UI.cardOrder = (which) => {
+    const A0 = ARRANGE[which];
+    const saved = Array.isArray(S.settings()[A0.key]) ? S.settings()[A0.key] : [];
+    const known = A0.cards.map((c) => c.id);
     const out = [];
     saved.forEach((o) => {
       if (o && known.indexOf(o.id) >= 0 && !out.some((x) => x.id === o.id)) out.push({ id: o.id, on: o.on !== false });
@@ -201,30 +213,33 @@
     });
     return out;
   };
-  const isDefaultOrder = (o) => o.every((x, i) => x.id === HOME_CARDS[i].id && x.on);
+  UI.homeOrder = () => UI.cardOrder('home');
   let arr = null;
-  UI.homeArrange = () => {
+  UI.arrange = (which) => {
+    const cfg = ARRANGE[which];
+    const CARDS = cfg.cards;
+    const isDefaultOrder = (o) => o.every((x, i) => x.id === CARDS[i].id && x.on);
     let entry = null;
-    let order = UI.homeOrder();
+    let order = UI.cardOrder(which);
     const save = async () => {
       try {
-        await S.setSetting('homeCards', order.map((o) => ({ id: o.id, on: o.on })));
+        await S.setSetting(cfg.key, order.map((o) => ({ id: o.id, on: o.on })));
       } catch (e) {
         UI.error(e);
       }
-      if (UI.route.name === 'home') UI.refresh();
+      if (UI.route.name === which) UI.refresh();
     };
     const render = () => {
       const shown = order.filter((o) => o.on).length;
-      let h = `<div class="form"><div><h2 class="sheet-title">Arrange Home</h2><p class="sheet-text">Drag a card by its handle, or use the arrows. Switch a card off to hide it. Your balance always stays at the top.</p></div><div class="arr-list" role="list">`;
+      let h = `<div class="form"><div><h2 class="sheet-title">${cfg.title}</h2><p class="sheet-text">Drag a card by its handle, or use the arrows. Switch a card off to hide it. ${cfg.fixed}</p></div><div class="arr-list" role="list">`;
       h += order
         .map((o, i) => {
-          const c = HOME_CARDS.find((x) => x.id === o.id);
+          const c = CARDS.find((x) => x.id === o.id);
           return `<div class="arr-row${o.on ? '' : ' off'}" role="listitem" data-id="${o.id}"><span class="arr-grip" aria-hidden="true">${ic('grip', 20, 2.6)}</span><span class="arr-text" id="arr-${o.id}"><b>${esc(c.name)}</b><span>${o.on ? esc(c.sub) : 'Hidden'}</span></span><button type="button" class="icon-btn sm press" data-lift data-act="arr-move" data-id="${o.id}" data-d="-1" aria-label="Move ${esc(c.name)} up"${i === 0 ? ' disabled' : ''}>${ic('arrowUp', 18, 2.2)}</button><button type="button" class="icon-btn sm press" data-lift data-act="arr-move" data-id="${o.id}" data-d="1" aria-label="Move ${esc(c.name)} down"${i === order.length - 1 ? ' disabled' : ''}>${ic('arrowDown', 18, 2.2)}</button>${UI.switch('arr-sw-' + o.id, o.on, 'arr-toggle', 'arr-' + o.id).replace('<button ', '<button data-id="' + o.id + '" ')}</div>`;
         })
         .join('');
       h += `</div>`;
-      if (!shown) h += `<p class="muted sm">All cards are hidden, so Home will only show your balance.</p>`;
+      if (!shown) h += `<p class="muted sm">${cfg.none}</p>`;
       h += `<div class="btn-row"><button type="button" class="btn btn-soft press" data-act="arr-reset"${isDefaultOrder(order) ? ' disabled' : ''}>Reset</button><button type="button" class="btn btn-primary press" data-act="sheet-close">Done</button></div></div>`;
       return h;
     };
@@ -314,14 +329,16 @@
         save();
       },
       reset() {
-        order = HOME_CARDS.map((c) => ({ id: c.id, on: true }));
+        order = CARDS.map((c) => ({ id: c.id, on: true }));
         redraw();
         save();
       }
     };
-    entry = UI.openSheet({ label: 'Arrange Home', render: render, after: bindDrag, onClose: () => (arr = null) });
+    entry = UI.openSheet({ label: cfg.title, render: render, after: bindDrag, onClose: () => (arr = null) });
   };
-  A['home-arrange'] = () => UI.homeArrange();
+  UI.homeArrange = () => UI.arrange('home');
+  A['home-arrange'] = () => UI.arrange('home');
+  A['ins-arrange'] = () => UI.arrange('insights');
   A['arr-move'] = (el) => arr && arr.move(el.getAttribute('data-id'), Number(el.getAttribute('data-d')));
   A['arr-toggle'] = (el) => arr && arr.toggle(el.getAttribute('data-id'));
   A['arr-reset'] = () => arr && arr.reset();
@@ -724,6 +741,55 @@
   };
 
   /* ================= INSIGHTS ================= */
+  function changesCard(m, end, isCurrent) {
+    const pm = S.mAdd(m, -1);
+    const n = U.daysBetween(m, end);
+    const pEnd = isCurrent ? U.addDays(pm, Math.min(n, S.mDays(pm) - 1)) : S.mEnd(pm);
+    const first = S.firstDate();
+    if (!first || S.mEnd(pm) < first) return '';
+    const map = {};
+    S.byCategory(m, end, 'expense').forEach((x) => (map[x.cat.id] = { cat: x.cat, now: x.total, then: 0 }));
+    S.byCategory(pm, pEnd, 'expense').forEach((x) => ((map[x.cat.id] = map[x.cat.id] || { cat: x.cat, now: 0, then: 0 }).then = x.total));
+    const rows = Object.keys(map)
+      .map((k) => Object.assign(map[k], { d: map[k].now - map[k].then }))
+      .filter((x) => x.d !== 0)
+      .sort((a, b) => Math.abs(b.d) - Math.abs(a.d))
+      .slice(0, 5);
+    const when = isCurrent ? 'vs this point in ' + S.mName(pm) : S.mName(m) + ' vs ' + S.mName(pm);
+    let h = `<section class="card"><div class="card-head"><h2 class="card-title">What changed</h2><span class="muted sm">${esc(when)}</span></div>`;
+    if (!rows.length) return h + `<p class="muted pad-t">No change from ${esc(S.mName(pm))} so far.</p></section>`;
+    const max = Math.abs(rows[0].d);
+    h += `<div class="chg-rows">`;
+    h += rows
+      .map((x) => {
+        const up = x.d > 0;
+        const w = Math.max(4, Math.round((Math.abs(x.d) / max) * 100));
+        return `<button class="chg-row press" data-act="cat-activity" data-cat="${esc(x.cat.id)}" data-from="${m}" data-to="${end}" aria-label="${esc(x.cat.name)}: ${U.fmt(x.then)} then, ${U.fmt(x.now)} now, ${up ? 'up' : 'down'} ${U.fmt(Math.abs(x.d))}">${UI.tile(x.cat, 'sm')}<span class="chg-name"><span class="chg-t">${esc(x.cat.name)}</span><span class="chg-sub">${U.fmt(x.then)} → ${U.fmt(x.now)}</span><span class="chg-bar"><span class="${up ? 'up' : 'down'}" style="width:${w}%"></span></span></span><span class="chg-amt ${up ? 'up' : 'down'}">${ic(up ? 'arrowUp' : 'arrowDown', 14, 2.6)}${U.fmt(Math.abs(x.d))}</span></button>`;
+      })
+      .join('');
+    return h + `</div></section>`;
+  }
+  function balanceCard(m, end) {
+    const today = U.today();
+    const first = S.firstDate();
+    if (!first) return '';
+    const bal = S.balance();
+    /* signed total of everything dated after d, up to today: balance on d = balance now - that */
+    const after = (d) => S.tx.reduce((a, t) => (t.date > d && t.date <= today ? a + S.signed(t) : a), 0);
+    const points = [];
+    for (let k = 11; k >= 0; k--) {
+      const ms = S.mAdd(m, -k);
+      if (S.mEnd(ms) < first) continue;
+      const me = k === 0 ? end : S.mEnd(ms);
+      points.push({ ms: ms, date: me, label: S.mShortName(ms), full: k === 0 && end === today ? 'Today' : 'End of ' + S.mLabel(ms), v: bal - after(me) });
+    }
+    if (points.length < 2) return '';
+    const last = points[points.length - 1];
+    const diff = last.v - points[0].v;
+    const since = points[0].ms;
+    return `<section class="card"><div class="card-head"><h2 class="card-title">Balance over time</h2><span class="muted sm">${points.length} months</span></div><div class="pair"><div><span class="lbl">${end === today ? 'Now' : 'End of ' + esc(S.mName(m))}</span><span class="big">${U.fmt(last.v)}</span></div><div><span class="lbl">Since ${esc(S.mName(since))}</span><span class="big${diff >= 0 ? ' in' : ''}">${U.fmt(diff, { plus: true })}</span></div></div>${MT.charts.balanceLine(points, { animate: UI.entering })}</section>`;
+  }
+
   V.insights = {
     render() {
       const m = S.mStart(UI.insMonth);
@@ -746,6 +812,8 @@
       const cmp = compareDiff(fl);
       if (cmp) h += `<p class="muted">${cmp.diff === 0 ? 'The same as ' + esc(cmp.when) : U.fmt(Math.abs(cmp.diff)) + (cmp.diff < 0 ? ' less than ' : ' more than ') + esc(cmp.when)}, when you’d spent ${U.fmt(fl.prev.spent)}.</p>`;
       h += MT.charts.flowLine(fl, { animate: UI.entering }) + flowLegend(fl) + `</section>`;
+      const cards = {};
+      let c = '';
       /* stat tiles */
       const daily = S.dailySpend(m, end);
       const dayCount = Math.max(1, U.daysBetween(m, end) + 1);
@@ -755,30 +823,32 @@
       });
       const count = S.range(m, end).filter(S.isStat).length;
       const go = `<span class="stat-go" aria-hidden="true">${ic('chevR', 14, 2.2)}</span>`;
-      h += `<div class="tiles3">`;
-      h += `<button class="stat press" data-act="stat-go" data-period="day" data-anchor="${end}" aria-label="Per day ${U.fmt(Math.round(tot.out / dayCount))}. Open day by day view">${go}<span class="lbl">Per day</span><span class="mid">${U.fmt(Math.round(tot.out / dayCount))}</span><span class="tiny">Day by day</span></button>`;
-      h += bigDay
+      c = `<div class="tiles3">`;
+      c += `<button class="stat press" data-act="stat-go" data-period="day" data-anchor="${end}" aria-label="Per day ${U.fmt(Math.round(tot.out / dayCount))}. Open day by day view">${go}<span class="lbl">Per day</span><span class="mid">${U.fmt(Math.round(tot.out / dayCount))}</span><span class="tiny">Day by day</span></button>`;
+      c += bigDay
         ? `<button class="stat press" data-act="stat-go" data-period="day" data-anchor="${bigDay}" aria-label="Biggest day ${U.fmt(daily[bigDay])} on ${U.fmtDay(bigDay)}. Open that day">${go}<span class="lbl">Biggest day</span><span class="mid">${U.fmt(daily[bigDay])}</span><span class="tiny">${U.fmtShortDate(bigDay)}</span></button>`
         : `<div class="stat"><span class="lbl">Biggest day</span><span class="mid">£0.00</span><span class="tiny">—</span></div>`;
-      h += `<button class="stat press" data-act="stat-go" data-period="month" data-anchor="${end}" aria-label="${count} entries. Open all entries for the month">${go}<span class="lbl">Entries</span><span class="mid">${count}</span><span class="tiny">See all</span></button>`;
-      h += `</div>`;
+      c += `<button class="stat press" data-act="stat-go" data-period="month" data-anchor="${end}" aria-label="${count} entries. Open all entries for the month">${go}<span class="lbl">Entries</span><span class="mid">${count}</span><span class="tiny">See all</span></button>`;
+      c += `</div>`;
+      cards.tiles = c;
       /* categories */
       const cats = S.byCategory(m, end, 'expense');
-      h += `<section class="card"><div class="card-head"><h2 class="card-title">Where it went</h2><span class="muted sm">${U.fmt(tot.out)}</span></div>`;
+      c = `<section class="card"><div class="card-head"><h2 class="card-title">Where it went</h2><span class="muted sm">${U.fmt(tot.out)}</span></div>`;
       if (cats.length) {
         const top = cats.slice(0, 7);
         const rest = cats.slice(7);
-        h += `<div class="cat-bars">` + top.map((c) => catBar(c, tot.out, cats[0].total, m, end)).join('');
+        c += `<div class="cat-bars">` + top.map((c) => catBar(c, tot.out, cats[0].total, m, end)).join('');
         if (rest.length) {
           const r = { cat: { id: '', name: rest.length + ' more categories', icon: 'more', color: 'slate' }, total: rest.reduce((a, c) => a + c.total, 0) };
           const pct = Math.round((r.total / tot.out) * 100);
-          h += `<div class="cat-bar static">${UI.tile(r.cat)}<span class="cb-main"><span class="cb-top"><span class="cb-name">${esc(r.cat.name)}</span><span class="cb-amt">${U.fmt(r.total)}</span></span><span class="cb-track"><span class="cb-fill muted-fill" style="width:${Math.max(2, Math.round((r.total / cats[0].total) * 100))}%"></span></span></span><span class="cb-pct">${pct}%</span></div>`;
+          c += `<div class="cat-bar static">${UI.tile(r.cat)}<span class="cb-main"><span class="cb-top"><span class="cb-name">${esc(r.cat.name)}</span><span class="cb-amt">${U.fmt(r.total)}</span></span><span class="cb-track"><span class="cb-fill muted-fill" style="width:${Math.max(2, Math.round((r.total / cats[0].total) * 100))}%"></span></span></span><span class="cb-pct">${pct}%</span></div>`;
         }
-        h += `</div>`;
-      } else h += `<p class="muted pad-t">No spending this month.</p>`;
+        c += `</div>`;
+      } else c += `<p class="muted pad-t">No spending this month.</p>`;
       const inc = S.byCategory(m, end, 'income');
-      if (inc.length) h += `<p class="muted sm pad-t">Income: ${inc.slice(0, 3).map((c) => esc(c.cat.name) + ' ' + U.fmt(c.total)).join(' · ')}</p>`;
-      h += `</section>`;
+      if (inc.length) c += `<p class="muted sm pad-t">Income: ${inc.slice(0, 3).map((c) => esc(c.cat.name) + ' ' + U.fmt(c.total)).join(' · ')}</p>`;
+      c += `</section>`;
+      cards.where = c;
       /* 6 months */
       const months = [];
       for (let k = 5; k >= 0; k--) {
@@ -787,7 +857,15 @@
         const t = S.totals(ms, me > today ? today : me);
         months.push({ label: S.mShortName(ms), full: S.mLabel(ms) + (S.payMode() ? ' (' + S.mSpan(ms) + ')' : ''), in: t.in, out: t.out });
       }
-      h += `<section class="card"><div class="card-head"><h2 class="card-title">Last 6 months</h2></div><div class="legend top"><span><i class="sw sw-out"></i>Spent</span><span><i class="sw sw-in"></i>Income</span></div>${MT.charts.monthBars(months)}<p class="muted sm">Tap a month for the numbers.</p></section>`;
+      cards.months = `<section class="card"><div class="card-head"><h2 class="card-title">Last 6 months</h2></div><div class="legend top"><span><i class="sw sw-out"></i>Spent</span><span><i class="sw sw-in"></i>Income</span></div>${MT.charts.monthBars(months)}<p class="muted sm">Tap a month for the numbers.</p></section>`;
+      /* what changed: categories that moved most against last month (to the same point, for the current month) */
+      cards.changes = changesCard(m, end, isCurrent);
+      /* balance at the end of each of the last 12 months */
+      cards.balance = balanceCard(m, end);
+      UI.cardOrder('insights').forEach((o) => {
+        if (o.on && cards[o.id]) h += cards[o.id];
+      });
+      h += `<button class="arrange-link press" data-act="ins-arrange">${ic('sliders', 16, 2)} Arrange Insights</button>`;
       h += `</div></div>`;
       return h;
     }
@@ -846,7 +924,7 @@
       const last = S.meta.lastFileBackup;
       let h = `<header class="appbar topbar"><h1 class="h1">More</h1></header><div class="stack">`;
       h += `<h2 class="section-label">Appearance</h2><section class="card">${UI.seg('Theme', [{ id: 'system', label: 'System', icon: 'system' }, { id: 'light', label: 'Light', icon: 'sun' }, { id: 'dark', label: 'Dark', icon: 'moon' }], st.theme, 'theme')}<p class="muted sm pad-t" id="theme-note">${themeNote(st.theme)}</p>`;
-      h += `<div class="set-row bordered"><span id="hide-lbl" class="set-text"><b>Hide balance when the app opens</b><span>Tap the eye on Home to show it</span></span>${UI.switch('sw-hide', st.hideOnOpen, 'set-hide', 'hide-lbl')}</div><button type="button" class="set-row bordered set-link press" data-act="home-arrange"><span class="set-text"><b>Arrange Home</b><span>Card order, and which ones show</span></span><span class="chev">${ic('chevR', 18, 2)}</span></button></section>`;
+      h += `<div class="set-row bordered"><span id="hide-lbl" class="set-text"><b>Hide balance when the app opens</b><span>Tap the eye on Home to show it</span></span>${UI.switch('sw-hide', st.hideOnOpen, 'set-hide', 'hide-lbl')}</div><button type="button" class="set-row bordered set-link press" data-act="home-arrange"><span class="set-text"><b>Arrange Home</b><span>Card order, and which ones show</span></span><span class="chev">${ic('chevR', 18, 2)}</span></button><button type="button" class="set-row bordered set-link press" data-act="ins-arrange"><span class="set-text"><b>Arrange Insights</b><span>Card order, and which ones show</span></span><span class="chev">${ic('chevR', 18, 2)}</span></button></section>`;
       h += `<h2 class="section-label">Your data</h2><section class="card list-card">`;
       if (MT.cloud && MT.cloud.enabled()) {
         const ck = MT.cloud.state().kind;
