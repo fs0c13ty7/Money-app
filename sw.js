@@ -1,6 +1,6 @@
 /* Money Tracker service worker: makes the app open instantly and work fully offline.
    It only caches the app's own files and fonts. Your money data lives in IndexedDB, never here. */
-const VERSION = 'mt-v1.9.4';
+const VERSION = 'mt-v1.10.0';
 const APP_FILES = [
   './',
   'index.html',
@@ -14,6 +14,7 @@ const APP_FILES = [
   'js/ui.js',
   'js/views.js',
   'js/sheets.js',
+  'js/tidy.js',
   'js/importer.js',
   'js/cloud.js',
   'js/drive.js',

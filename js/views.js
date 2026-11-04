@@ -1066,6 +1066,8 @@
       let h = UI.subHeader('Categories', `<button class="btn btn-sm ${st.edit ? 'btn-primary' : 'btn-soft'} press" data-act="cat-edit" aria-pressed="${st.edit}">${st.edit ? 'Done' : 'Edit'}</button>`) + `<div class="stack">`;
       h += UI.seg('Category type', [{ id: 'expense', label: 'Expense · ' + S.catsOf('expense').length }, { id: 'income', label: 'Income · ' + S.catsOf('income').length }], st.tab, 'cat-tab');
       h += `<button class="btn btn-dashed press" data-act="cat-new">${ic('plus', 18, 2.2)} New ${st.tab} category</button>`;
+      const fbN = S.tx.filter((t) => t.categoryId === S.fallbackFor(st.tab)).length;
+      h += `<section class="card list-card"><button class="tx-row press" data-act="tidy-open"><span class="tile c-teal">${ic('spark', 20)}</span><span class="tx-main"><span class="tx-title">Tidy up ${esc(S.cat(S.fallbackFor(st.tab)).name)}</span><span class="tx-sub">${fbN ? fbN.toLocaleString('en-GB') + ' entr' + (fbN === 1 ? 'y' : 'ies') + ' to sort, grouped by name' : 'Nothing to sort'}</span></span><span class="chev">${ic('chevR', 18, 2)}</span></button><label class="tx-row press" for="chg-file"><span class="tile c-slate">${ic('file', 20)}</span><span class="tx-main"><span class="tx-title">Apply a changes file</span><span class="tx-sub">You’ll see a preview first</span></span><span class="chev">${ic('chevR', 18, 2)}</span><input type="file" id="chg-file" accept="application/json,.json" class="sr"></label></section>`;
       const month = U.monthStart(U.today());
       const counts = {};
       S.tx.forEach((t) => (counts[t.categoryId] = (counts[t.categoryId] || 0) + 1));
@@ -1082,6 +1084,9 @@
       h += `</section><p class="hint">${ic('lock', 16, 1.9)} Built-in categories handle transfers and catch transactions from categories you remove, so they can’t be removed. You can still rename or recolour them.</p>`;
       void month;
       return h + `</div>`;
+    },
+    after(el) {
+      MT.tidy.bindFile(el);
     }
   };
   A['cat-edit'] = () => {
@@ -1237,7 +1242,7 @@
           box.innerHTML = snaps
             .map(
               (s) =>
-                `<div class="tx-row static"><span class="tile c-slate">${ic(s.kind === 'daily' ? 'history' : 'shield', 20)}</span><span class="tx-main"><span class="tx-title">${s.kind === 'daily' ? U.fmtDay(U.iso(new Date(s.createdAt))) : 'Before restore · ' + U.fmtDay(U.iso(new Date(s.createdAt)))}</span><span class="tx-sub">${s.count} entries · balance ${U.fmt(s.balance)}</span></span><button class="btn btn-sm btn-soft press" data-act="snap-restore" data-id="${esc(s.id)}">Restore</button></div>`
+                `<div class="tx-row static"><span class="tile c-slate">${ic(s.kind === 'daily' ? 'history' : 'shield', 20)}</span><span class="tx-main"><span class="tx-title">${s.kind === 'daily' ? U.fmtDay(U.iso(new Date(s.createdAt))) : (s.kind === 'changes' ? 'Before category changes · ' : 'Before restore · ') + U.fmtDay(U.iso(new Date(s.createdAt)))}</span><span class="tx-sub">${s.count} entries · balance ${U.fmt(s.balance)}</span></span><button class="btn btn-sm btn-soft press" data-act="snap-restore" data-id="${esc(s.id)}">Restore</button></div>`
             )
             .join('');
         })
@@ -1325,6 +1330,10 @@
           obj = JSON.parse(text);
         } catch (err) {
           throw new Error('That file couldn’t be read. Pick a .json backup saved from this app.');
+        }
+        if (MT.tidy && MT.tidy.isChanges(obj)) {
+          if (UI.sheets.length) await UI.closeSheet();
+          return MT.tidy.preview(obj, f.name);
         }
         const v = S.validateImport(obj);
         if (!v.ok) throw new Error(v.error);
