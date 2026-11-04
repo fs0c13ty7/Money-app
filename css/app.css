@@ -544,7 +544,7 @@ label.btn { cursor: pointer; }
 .qa-sheet .sheet-body { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .qa { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .qa .qa-head { padding: 0 max(10px, env(safe-area-inset-right, 0px)) 0 max(10px, env(safe-area-inset-left, 0px)); margin: 0; }
-.qa-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px max(20px, env(safe-area-inset-left, 0px)) 14px max(20px, env(safe-area-inset-right, 0px)); overscroll-behavior: contain; }
+.qa-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px max(20px, env(safe-area-inset-left, 0px)) 10px max(20px, env(safe-area-inset-right, 0px)); overscroll-behavior: contain; }
 .qa-scroll > *, .form > *, .stack > * { flex-shrink: 0; }
 .qa-amount { display: flex; align-items: center; justify-content: center; min-height: 76px; border: 0; background: none; border-radius: 18px; padding: 4px; }
 .qa-amt { font-size: 50px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; color: var(--ink); }
@@ -566,7 +566,7 @@ label.btn { cursor: pointer; }
 .qa-bottom { flex: none; padding: 10px max(14px, env(safe-area-inset-right, 0px)) 14px max(14px, env(safe-area-inset-left, 0px)); border-top: 1px solid var(--divider); background: var(--surface); }
 .keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-height: 280px; margin-bottom: 10px; overflow: hidden; transition: max-height .32s var(--ease), opacity .2s, margin .32s var(--ease); }
 .typing .keypad { max-height: 0; opacity: 0; margin-bottom: 0; }
-.key { height: clamp(44px, 6.4vh, 56px); border: 0; border-radius: 16px; background: var(--surface-2); color: var(--ink); font-size: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; transition: background-color .12s, transform .1s var(--ease); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.key { height: clamp(40px, 6vh, 54px); border: 0; border-radius: 16px; background: var(--surface-2); color: var(--ink); font-size: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; transition: background-color .12s, transform .1s var(--ease); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .key:active { background: var(--line); transform: scale(.96); }
 .qa-save { width: 100%; }
 
@@ -688,3 +688,21 @@ html.ready #view { opacity: 1; transition: opacity .3s var(--ease-soft); }
 .chg-list li:first-child { border-top: 0; }
 .chg-list li > span:not(.tile):not(.muted) { flex: 1; min-width: 0; }
 .chg-list li .muted { flex: none; font-variant-numeric: tabular-nums; }
+
+/* shorter phones: tighten the add screen so Repeat stays in view without scrolling */
+@media (max-height: 860px) {
+  .qa-amount { min-height: 62px; }
+  .qa-amt { font-size: 44px; }
+  .keypad { gap: 7px; }
+}
+@media (max-height: 760px) {
+  .qa-amount { min-height: 52px; }
+  .qa-amt { font-size: 40px; }
+  .qa-scroll { gap: 8px; }
+  .qa-bottom { padding-top: 8px; padding-bottom: 10px; }
+  .keypad { gap: 6px; margin-bottom: 8px; }
+  .qa-save.btn-lg { height: 50px; }
+}
+@media (max-height: 720px) {
+  .qa-label { display: none; }
+}
